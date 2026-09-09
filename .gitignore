@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local observations and detector assets (keep directory documentation)
+/FITS_files/*
+!/FITS_files/README.md
+/FilamentSegmentator/*
+!/FilamentSegmentator/README.md
+
+# Generated experiments, benchmark output, and personal notebooks
+/simulations/
+/scratch/
+/notebooks/local/*
+!/notebooks/local/.gitkeep
+
+# Calibration provenance in processed/ and runtime assets in
+# synthetic_filaments/data/ belong in version control.

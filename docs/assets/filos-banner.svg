@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="270" viewBox="0 0 1200 270" role="img" aria-labelledby="title desc">
+  <title id="title">FILOS — A solar Filament Oscillation Simulator</title>
+  <desc id="desc">Dark title panel with a schematic of curved filament threads. Decorative illustration, not simulation output.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1">
+      <stop stop-color="#111c2a"/>
+      <stop offset="1" stop-color="#1b3040"/>
+    </linearGradient>
+    <linearGradient id="thread">
+      <stop stop-color="#e79552" stop-opacity="0.2"/>
+      <stop offset="0.5" stop-color="#f6c583"/>
+      <stop offset="1" stop-color="#e79552" stop-opacity="0.2"/>
+    </linearGradient>
+    <clipPath id="panel"><rect width="1200" height="270" rx="18"/></clipPath>
+  </defs>
+  <g clip-path="url(#panel)">
+    <rect width="1200" height="270" fill="url(#bg)"/>
+    <g fill="none" stroke="#8fb6c6" stroke-opacity="0.08">
+      <path d="M620 55H1200M620 95H1200M620 135H1200M620 175H1200M620 215H1200"/>
+      <path d="M680 0V270M760 0V270M840 0V270M920 0V270M1000 0V270M1080 0V270M1160 0V270"/>
+    </g>
+    <g fill="none" stroke="url(#thread)" stroke-width="2.5" stroke-linecap="round">
+      <path d="M657 183C764 19 821 223 936 97S1090 82 1216 17"/>
+      <path d="M652 193C766 26 820 231 939 106S1091 91 1220 26"/>
+      <path d="M648 203C763 36 823 241 941 115S1095 101 1224 36"/>
+      <path d="M644 213C761 46 825 251 944 124S1099 111 1228 46"/>
+      <path d="M640 223C759 56 827 261 947 133S1103 121 1232 56"/>
+      <path d="M636 233C757 66 829 271 950 142S1107 131 1236 66"/>
+      <path d="M632 243C755 76 831 281 953 151S1111 141 1240 76"/>
+    </g>
+    <rect x="48" y="52" width="34" height="4" rx="2" fill="#f6c583"/>
+    <text x="46" y="135" fill="#f5f7fa" font-family="system-ui, sans-serif" font-size="76" font-weight="650" letter-spacing="7">FILOS</text>
+    <text x="50" y="181" fill="#b9cbd6" font-family="system-ui, sans-serif" font-size="23">A solar Filament Oscillation Simulator</text>
+    <text x="50" y="223" fill="#88a2b4" font-family="system-ui, sans-serif" font-size="13" letter-spacing="2">GEOMETRY / PLASMA / DYNAMICS</text>
+  </g>
+</svg>

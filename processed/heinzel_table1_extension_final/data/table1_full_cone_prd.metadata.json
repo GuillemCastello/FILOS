@@ -1,0 +1,52 @@
+{
+  "created_unix": 1788452021.7189765,
+  "mode": "full",
+  "scientific_setup": {
+    "projection": "prominence",
+    "temperature_K": [
+      6000,
+      8000,
+      10000,
+      12000,
+      14000
+    ],
+    "pressure_dyn_cm2": [
+      0.01,
+      0.02,
+      0.05,
+      0.1,
+      0.2
+    ],
+    "thickness_km": 500.0,
+    "vturb_km_s": 5.0,
+    "active_atoms": [
+      "H"
+    ],
+    "definition_i_total_electrons": "n_e / n_H_total at slab centre (modern Lightweaver total electron density)",
+    "definition_i_heinzel_analog": "n_p / n_H_total at slab centre; closest analogue to Heinzel i because their H calculation neglects He ionization",
+    "definition_f_total_electrons": "n_e^2 / n_2 at slab centre, reported in cm^-3",
+    "definition_f_heinzel_analog": "n_p^2 / n_2 at slab centre; closest analogue to Heinzel f under their neutral-He electron-density treatment"
+  },
+  "runtime": {
+    "bc": "cone",
+    "prd": true,
+    "threads": 1,
+    "nhalf_points": 45,
+    "max_iter": 2000,
+    "jtol": 0.005,
+    "popstol": 0.001,
+    "nrays_uniform": 3,
+    "nrays_cone": 10,
+    "cone_phi_nodes": 50,
+    "cone_rays": 10
+  },
+  "versions": {
+    "python": "3.10.12 (main, Jul 15 2026, 23:40:17) [GCC 11.4.0]",
+    "promweaver": "0.5.2",
+    "lightweaver": "0.16.1",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "matplotlib": "3.10.9",
+    "astropy": "6.1.7"
+  }
+}

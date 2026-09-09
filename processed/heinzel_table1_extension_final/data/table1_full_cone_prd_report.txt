@@ -1,0 +1,28 @@
+Input: table1_full_cone_prd.csv
+Successful models: 2500 / 2500
+
+Validation against Heinzel, Gunar & Anzer (2015), Table 1
+Primary comparison uses n_p/n_H and n_p^2/n_2 because the Heinzel hydrogen calculation neglects He ionization.
+Matched reference cells: 75 / 75
+i: mean absolute error = 0.02507
+i: median |relative error| = 2.43%
+i: max |relative error| = 33.29%
+f: mean absolute error = 2.97935 x 1e16 cm^-3
+f: median |relative error| = 62.22%
+f: max |relative error| = 86.46%
+
+Modern total-electron diagnostics (not primary Table-1 comparison):
+i_total: median |relative error| = 10.41%
+f_total: median |relative error| = 66.87%
+
+By height:
+   10 Mm: n=25, median |di/i|=1.64%, median |df/f|=56.82%
+   20 Mm: n=25, median |di/i|=2.50%, median |df/f|=62.22%
+   30 Mm: n=25, median |di/i|=2.43%, median |df/f|=62.98%
+
+Extended grid products written:
+  table1_full_cone_prd_extended_i_by_height.csv
+  table1_full_cone_prd_extended_f_by_height_1e16.csv
+
+Max |sum(H populations)/nH - 1| = 4.441e-16
+Max |reconstructed pressure / target - 1| = 3.091e-05

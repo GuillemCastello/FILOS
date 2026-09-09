@@ -1,0 +1,27 @@
+FINAL 1-100 Mm HEINZEL TABLE-1 EXTENSION
+
+Input Promweaver models: 2500
+Successful models: 2500 / 2500
+Height grid: 1-100 Mm in 1-Mm steps
+Temperature grid: [6000, 8000, 10000, 12000, 14000]
+Pressure grid [dyn cm^-2]: [0.01, 0.02, 0.05, 0.1, 0.2]
+Boundary condition: ConePromBc / Promweaver FAL-C tabulated boundary
+Hydrogen solution: PRD
+
+DIRECT PROMWEAVER vs HEINZEL 2015 (75 anchor cells)
+Median |relative error| i_H = 2.43%
+Median |relative error| f_H = 62.22%
+
+HEIGHT-RESPONSE VALIDATION: CALIBRATE ONLY AT 10 Mm
+Predict published 20 Mm: median |error| i = 0.47%, f = 1.64%
+Predict published 30 Mm: median |error| i = 0.56%, f = 2.98%
+Maximum over these 50 predictions: i = 2.66%, f = 5.75%
+
+FINAL CALIBRATION
+At 10, 20, 30 Mm, multiplicative correction factors force exact agreement with the published Table 1.
+Between 10-20 and 20-30 Mm, correction factors are interpolated geometrically (linearly in log correction).
+Below 10 Mm, the 10-Mm correction factor is held fixed, preserving Promweaver's relative height dependence.
+Above 30 Mm, the 30-Mm correction factor is held fixed, preserving Promweaver's relative height dependence.
+
+CAUTION
+The 1-5 Mm regime is supplied because it was requested, but the isolated prominence-slab assumptions become less secure very low in the atmosphere. Treat that regime with more caution than the coronal-prominence heights.

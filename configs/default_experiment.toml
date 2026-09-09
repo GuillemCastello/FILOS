@@ -1,0 +1,89 @@
+[experiment]
+name = "notebook-07"
+description = "Notebook 07 reference experiment"
+
+[inputs]
+h5_background_path = "FITS_files/20140101.h5"
+
+[static]
+seed = 1235
+spine_library_entry_index = "auto"
+spine_library_length_bounds_km = [150000.0, 300000.0]
+spine_width_km = 7500.0
+thread_density_per_mm = 15.0
+thread_count_cap = 50000
+thread_length_min_km = 20000.0
+thread_length_max_km = 100000.0
+thread_radius_min_km = 75.0
+thread_radius_max_km = 300.0
+thread_pitch_mean_deg = 25.0
+thread_pitch_std_deg = 6.0
+height_mean_km = 20000.0
+height_std_km = 2000.0
+dip_curvature_radius_min_km = 50000.0
+dip_curvature_radius_max_km = 250000.0
+dip_curvature_radius_median_km = 100000.0
+dip_curvature_radius_sigma_ln = 0.25
+thread_separation_radii = 2.5
+thread_point_spacing_km = 150.0
+endpoint_radius_floor = 0.4
+width_modulation_amplitude = 0.35
+width_modulation_correlation = 0.25
+temp_center_K = 7000.0
+temp_tr_K = 100000.0
+pctr_gamma = 2.0
+ionization_center = 0.3
+transition_pressure_dyn_cm2 = 0.015
+column_mass_g_cm2 = 0.0001
+microturbulent_velocity_kms = 5.0
+halpha_wavelength_angstrom = 6562.8
+foot_taper_fraction = 0.1
+source_fraction = 0.4646464646464647
+gong_bandpass_line_fraction = 0.65
+mask_tau_threshold = 0.1
+psf_sigma_px = 4.0
+
+[dynamic_background]
+seed = 1236
+crop_height_px = 448
+crop_width_px = 448
+start_index = 0
+frame_step = 1
+random_attempts = 512
+use_detector = true
+detection_threshold = 0.5
+box_expand_fraction = 0.25
+box_expand_px = 12.0
+
+[dynamics]
+seed = 1236
+n_frames = 240
+cadence_s = 60.0
+longitudinal_displacement_amplitude_km = 18000.0
+transverse_displacement_amplitude_km = 2000.0
+oscillation_mode = "luna_2022_curvature"
+period_s = 3600.0
+transverse_period_s = 1500.0
+damping_time_s = 14400.0
+phase_rad = 0.0
+brownian_step_min_km = 200.0
+brownian_step_max_km = 500.0
+center_spine_fraction = 0.55
+center_height_km = "auto"
+sphere_radius_km = 14000.0
+kernel_half_weight_radius_fraction = 0.85
+kernel_power = 1.1
+oscillation_start_time_s = 1200.0
+
+[export]
+thread_mask_dilation_px = 5
+video_lower_percentile = 0.0
+video_upper_percentile = 100.0
+velocity_opacity_floor = 0.000001
+compression = "lzf"
+gzip_level = 4
+
+[video]
+fps = 30
+velocity_limit_km_s = "auto"
+quiver_stride_px = 8
