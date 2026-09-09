@@ -22,10 +22,12 @@ too short for a request produce an error instead of repeated or interpolated fra
 ## Prepare full-disk observations
 
 ```bash
-python scripts/prepare_backgrounds.py
+python scripts/prepare_backgrounds.py --frames 389
 ```
 
-Default inputs: `FITS_files/*.h5`. Each needs:
+The command above uses the tested length for the supplied observations.
+The default target, when `--frames` is omitted, is **400 frames** (about 6 hours 40 minutes at one-minute
+cadence), from `FITS_files/*.h5`. Each source needs:
 
 - `time_series`: floating-point images shaped `(time, height, width)`.
 - `tdeltas`: strictly increasing timestamps in seconds, one per image.
@@ -39,12 +41,17 @@ unchanged with lossless LZF compression. Overlapping crops from the same interva
 are avoided. Output filenames identify the source, starting frame, and crop origin.
 
 ```bash
-python scripts/prepare_backgrounds.py FITS_files/20141018.h5 \
-  --frames 120 --size 448 --count 2 --cadence 60 --seed 0
+python scripts/prepare_backgrounds.py FITS_files/20190105.h5 \
+  --frames 389 --size 448 --count 2 --cadence 60 --seed 0
 ```
 
 `--count` is a maximum per source, not a guarantee. Longer intervals are more
-likely to encounter gaps or evolving structures. Existing outputs are never
+likely to encounter gaps or evolving structures. With the supplied sources, only
+`20190105.h5` has an uninterrupted interval of at least 400 frames at 60 seconds.
+Preparation skips shorter intervals; it never fills gaps or repeats frames.
+For the supplied library, 389-frame crops pass the full screening; the final
+frames of the 400-frame candidates do not. The command above uses that tested
+length. The default target remains 400 for future observations. Existing outputs are never
 overwritten; use a separate `--output` directory to rebuild a library.
 
 ### Optional preparation detector

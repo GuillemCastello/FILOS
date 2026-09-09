@@ -1,28 +1,31 @@
 # Prepared library inventory
 
-These files were prepared locally from the supplied GONG observations. The HDF5
-files are distributed separately; this inventory records their identities.
+The active library contains two **389-frame** sequences, close to the 400-frame
+preparation target. Both come from the uninterrupted interval at source indices
+187–575 inclusive in `20190105.h5`. They span 388 minutes at one-minute cadence.
 
 | File | Frames | Shape | Cadence | Size |
 | :--- | ---: | :--- | ---: | ---: |
-| `20140101-0341-1128-1195.h5` | 120 | 448 × 448 | 60 s | 90.5 MiB |
-| `20140215-0894-1039-1108.h5` | 120 | 448 × 448 | 60 s | 90.8 MiB |
-| `20140215-1116-895-1231.h5` | 120 | 448 × 448 | 60 s | 90.8 MiB |
-| `20141018-0667-635-1294.h5` | 120 | 448 × 448 | 60 s | 90.9 MiB |
-| `20190105-0001-1012-659.h5` | 120 | 448 × 448 | 60 s | 90.5 MiB |
-| `20190105-0001-1039-1108.h5` | 120 | 448 × 448 | 60 s | 90.5 MiB |
+| `20190105-0187-1012-659.h5` | 389 | 448 × 448 | 60 s | 293.5 MiB |
+| `20190105-0187-1039-1108.h5` | 389 | 448 × 448 | 60 s | 293.8 MiB |
 
-Each sequence passed structural and finite-positive-pixel screening on all 120
-frames, plus detector checks at offsets 0, 30, 60, 90, and 119. No interpolation,
-normalization, or resampling was applied. The source timestamps are preserved in
-the provenance. See [library.json](library.json) for metadata and SHA-256 digests.
+Every frame passed finite-positive-pixel and quiet-structure screening. Detector
+screening covered the first frame, every 30th frame, and the last frame. Pixel
+values and timestamps were copied without interpolation, normalization, or repetition.
 
-The same preparation settings found no passing sequences in `20140323.h5` or
-`20141216.h5`. This describes the tested candidates and intervals, not every
-possible crop in those source files.
+The tested 400-frame candidates failed near the end of the interval, so the
+supplied sequences stop before those failures. The 396-frame October interval
+also produced no passing crops in the tested search. Other supplied sources do
+not have 400 uninterrupted one-minute frames. These results describe the tested
+candidates, not every possible crop.
 
 Prepared with:
 
 ```bash
-python scripts/prepare_backgrounds.py --use-detector --count 2
+python scripts/prepare_backgrounds.py FITS_files/20190105.h5 --frames 389 --use-detector --count 2
 ```
+
+See [library.json](library.json) for complete provenance and SHA-256 digests. The
+HDF5 files stay local and are distributed separately. The previous 120-frame
+library is retained in [archive/](archive/README.md) and is excluded from automatic
+selection because the loader only scans the top level of `backgrounds/`.

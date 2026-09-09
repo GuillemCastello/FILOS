@@ -1,9 +1,9 @@
 [experiment]
 name = "readme-example"
-description = "120-frame Luna example on a prepared GONG quiet-Sun sequence"
+description = "389-frame Luna example on a prepared GONG quiet-Sun sequence"
 
 [inputs]
-h5_background_path = "backgrounds/20140101-0341-1128-1195.h5"
+h5_background_path = "backgrounds/20190105-0187-1039-1108.h5"
 
 [static]
 seed = 1235
@@ -50,7 +50,7 @@ frame_step = 1
 
 [dynamics]
 seed = 1236
-n_frames = 120
+n_frames = 389
 longitudinal_displacement_amplitude_km = 18000.0
 transverse_displacement_amplitude_km = 2000.0
 oscillation_mode = "luna_2022_curvature"

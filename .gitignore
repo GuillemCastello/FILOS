@@ -227,5 +227,5 @@ __marimo__/
 # synthetic_filaments/data/ belong in version control.
 
 # Prepared background pixels stay local; include the schema and library inventory.
-/backgrounds/*.h5
-/backgrounds/*.partial
+/backgrounds/**/*.h5
+/backgrounds/**/*.partial

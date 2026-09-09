@@ -241,6 +241,7 @@ def _run_current_experiment(
         output / "static_state/manifest.json",
         output / "frame_zero_comparison.png",
         output / "geometry_diagnostics.png",
+        output / "luna_dynamics_diagnostics.png",
     )
     missing = [str(path) for path in required if not path.is_file()]
     if missing:

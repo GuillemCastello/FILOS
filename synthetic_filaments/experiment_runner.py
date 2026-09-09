@@ -58,7 +58,7 @@ from .video import (
 )
 
 StatusCallback = Callable[[str, Mapping[str, Any]], None]
-PREVIEW_RENDER_VERSION = 7
+PREVIEW_RENDER_VERSION = 8
 STATIC_STATE_SNAPSHOT_VERSION = 1
 
 _GEOMETRY_STATIC_FIELDS = {
@@ -229,7 +229,7 @@ def _geometry_diagnostics_figure(initial_result: Mapping[str, Any]) -> Any:
         values = np.asarray([thread[name] for thread in threads], dtype=float) * scale
         axis.hist(values, bins=35, color=color, edgecolor="white", linewidth=0.25)
         axis.axvline(np.median(values), color="#D55E00", linewidth=1.5, label="Median")
-        axis.set(title=label, xlabel=label, ylabel="Threads")
+        axis.set(xlabel=label, ylabel="Threads")
         axis.legend(loc="best")
     return figure
 
@@ -1021,6 +1021,7 @@ def _augment_simulation_metadata(
             "static_state": "static_state",
             "frame_zero_comparison": "frame_zero_comparison.png",
             "geometry_diagnostics": "geometry_diagnostics.png",
+            "luna_dynamics_diagnostics": "luna_dynamics_diagnostics.png",
             "gong_video": gong_path.name,
             "gong_video_sha256": file_sha256(gong_path),
             "velocity_video": velocity_path.name,
@@ -1152,6 +1153,9 @@ def run_experiment(
         )
         (run_directory / "geometry_diagnostics.png").write_bytes(
             _figure_png_bytes(_geometry_diagnostics_figure(initial_result))
+        )
+        (run_directory / "luna_dynamics_diagnostics.png").write_bytes(
+            _figure_png_bytes(_luna_diagnostics_figure(initial_result)[0])
         )
         _augment_simulation_metadata(
             Path(saved["metadata_path"]),

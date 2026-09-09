@@ -12,7 +12,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sources", type=Path, nargs="*", help="HDF5 files; default: FITS_files/*.h5")
     parser.add_argument("--output", type=Path, default=DEFAULT_BACKGROUNDS_DIR)
-    parser.add_argument("--frames", type=int, default=120)
+    parser.add_argument("--frames", type=int, default=400)
     parser.add_argument("--size", type=int, default=448, help="Square crop size in pixels")
     parser.add_argument("--count", type=int, default=2, help="Maximum sequences per source")
     parser.add_argument("--seed", type=int, default=0)

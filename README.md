@@ -57,21 +57,25 @@ Changing the background seed selects reproducibly from the available library.
 
 Each file contains the actual observation pixels and its observing geometry.
 Dimensions and cadence are read automatically. The default simulation uses
-**120 frames**; choose a suitable frame count, starting index, and frame step for
-other sequences. Original full-disk observations are only needed during preparation.
+**120 frames** for a quick first run; the supplied library contains **389-frame sequences** (about 400).
+Increase the frame count for a longer video, or select a shorter interval with
+the starting index and frame step. Original full-disk observations are only needed during preparation.
 
 ## Example
 
 A simulation using a prepared GONG background and the curvature-based Luna
-oscillation model. Click the preview to open the intensity video.
+oscillation model: **389 frames at 30 FPS**, lasting **13 seconds**.
+The inline preview also plays at 30 FPS. Click it to open the intensity video.
 
-[![Synthetic filament intensity animation](docs/assets/example/intensity.gif)](docs/assets/example/gong.mp4)
+[![Synthetic filament intensity animation](docs/assets/example/intensity.webp)](docs/assets/example/gong.mp4)
 
 [Intensity video](docs/assets/example/gong.mp4) ·
 [Velocity video](docs/assets/example/velocity.mp4) ·
 [Run configuration](configs/readme_example.toml)
 
 ![Observed background and synthetic filament comparison](docs/assets/example/frame_zero_comparison.png)
+
+![Expected Luna periods for the realized filament threads](docs/assets/example/luna_dynamics_diagnostics.png)
 
 <details>
 <summary>Thread geometry diagnostics</summary>
@@ -93,29 +97,31 @@ python scripts/run_experiment.py --config configs/readme_example.toml
 
 ## Prepare your own backgrounds
 
-Place aligned full-disk observations in `FITS_files/`, then run:
+Place aligned full-disk observations in `FITS_files/`. The preparation target
+is 400 frames by default. For the supplied observations, use **389 frames** to
+stop before the quiet-region screening failures near the end of the interval:
 
 ```bash
-python scripts/prepare_backgrounds.py
+python scripts/prepare_backgrounds.py --frames 389
 ```
 
-This scans all source `.h5` files and saves up to two **448 × 448**, **120-frame**
-sequences per source into `backgrounds/`. It uses the source timestamps to find
-uninterrupted 60-second intervals and screens **every frame** for invalid pixels
-and large dark/bright structures. It preserves the selected pixels without
-interpolation or normalization. Some sources or intervals may yield no acceptable crops.
+This scans all source `.h5` files and saves up to two **448 × 448** sequences per
+source into `backgrounds/`. It uses the source timestamps to find uninterrupted
+60-second intervals and screens **every frame** for invalid pixels and large
+dark/bright structures. Pixels are preserved without interpolation, normalization,
+or repetition. Some sources or intervals may yield no acceptable crops.
 
-You can also prepare a particular file:
+To prepare only the source used by the example:
 
 ```bash
-python scripts/prepare_backgrounds.py FITS_files/20141018.h5 --frames 120 --count 2
+python scripts/prepare_backgrounds.py FITS_files/20190105.h5 --frames 389 --count 2
 ```
 
 Optional detector screening is available for library preparation:
 
 ```bash
 python -m pip install -e '.[prepare]'
-python scripts/prepare_backgrounds.py --use-detector
+python scripts/prepare_backgrounds.py FITS_files/20190105.h5 --frames 389 --use-detector
 ```
 
 That option requires the separately supplied local detector weights and screens

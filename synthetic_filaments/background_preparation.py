@@ -225,7 +225,7 @@ def prepare_backgrounds(
     source: str | Path,
     output: str | Path,
     *,
-    n_frames: int = 120,
+    n_frames: int = 400,
     crop_shape: tuple[int, int] = (448, 448),
     count: int = 2,
     seed: int = 0,
@@ -239,7 +239,7 @@ def prepare_backgrounds(
         raise ValueError("count/stride must be positive and crop dimensions at least 8")
     rng = np.random.default_rng(seed)
     saved = []
-    with h5py.File(source, "r", rdcc_nbytes=512 * 2**20) as handle:
+    with h5py.File(source, "r", rdcc_nbytes=512 * 2**20, rdcc_nslots=10007) as handle:
         dataset = handle["time_series"]
         if dataset.ndim != 3 or any(a > b for a, b in zip(crop_shape, dataset.shape[1:], strict=True)):
             raise ValueError("source must be a full-disk time series larger than the requested crop")
@@ -261,10 +261,14 @@ def prepare_backgrounds(
                 crop = first[y0:y1, x0:x1]
                 if support[y0:y1, x0:x1].all() and _quiet_crop_ok(crop):
                     valid.append((x0, y0, x1, y1))
-                if len(valid) == 32:
+                if len(valid) == 128:
                     break
             checked_detector_frames = []
-            for offset in range(n_frames):
+            # Reject evolving regions early, then check every remaining frame.
+            check_order = dict.fromkeys(
+                [0, n_frames - 1, *range(0, n_frames, detector_stride), *range(n_frames)]
+            )
+            for checked, offset in enumerate(check_order, 1):
                 if not valid:
                     break
                 frame = first if offset == 0 else np.asarray(dataset[start + offset])
@@ -287,6 +291,8 @@ def prepare_backgrounds(
                         continue
                     accepted.append(bounds)
                 valid = accepted
+                if checked % 100 == 0:
+                    print(f"  Checked {checked}/{n_frames} frames; {len(valid)} crops remain", flush=True)
             print(f"  {source.name} frames {start}:{start + n_frames}: {len(valid)} passing crops", flush=True)
             chosen = []
             for bounds in valid:
@@ -311,7 +317,7 @@ def prepare_backgrounds(
                                      "source_disk_center_px": list(center),
                                      "source_disk_radius_px": radius,
                                      "quiet_screened_frames": n_frames,
-                                     "detector_frame_indices": checked_detector_frames,
+                                     "detector_frame_indices": sorted(checked_detector_frames),
                                      "screening": "quiet-structure heuristics on every frame",
                                  })
                 print(f"  Saved {path}", flush=True)

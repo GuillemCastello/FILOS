@@ -48,6 +48,7 @@ simulations/
                 ├── static_state/
                 ├── frame_zero_comparison.png
                 ├── geometry_diagnostics.png
+                ├── luna_dynamics_diagnostics.png
                 ├── gong.mp4
                 └── velocity.mp4
 ```
