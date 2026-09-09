@@ -2,70 +2,57 @@
 
 [Project README](../README.md) · [Documentation](../docs/README.md)
 
-Run commands from the repository root. Entry points remain together here because
-several resolve the project root from their location, and the GUI launches its
-worker by path.
+Activate the virtual environment and run commands from the repository root.
 
-## Interface and workers
+## Normal use
 
 | Script | Purpose |
 | :--- | :--- |
 | `experiment_gui.py` | Local Streamlit experiment interface |
-| `run_experiment_worker.py` | Execute an immutable configuration snapshot; normally launched by the GUI |
+| `run_experiment.py` | Run an experiment TOML through preview and production |
+| `prepare_backgrounds.py` | Prepare portable quiet-Sun sequences from full-disk observations |
+| `run_experiment_worker.py` | Internal worker launched by the GUI or command-line runner |
 
 ```bash
-uv run --extra gui --extra detector streamlit run scripts/experiment_gui.py
+python -m streamlit run scripts/experiment_gui.py
+python scripts/run_experiment.py --config configs/readme_example.toml
+python scripts/prepare_backgrounds.py
 ```
 
-See [local inputs](../README.md#local-inputs) for observations, detector assets,
-FFmpeg, and GPU selection.
+Ordinary runs only need prepared backgrounds and FFmpeg. Preparation uses source
+observations and optionally the detector; see the [background guide](../docs/BACKGROUNDS.md).
 
-## Regression checks
+## Checks
 
-| Script | Coverage |
+```bash
+python -m unittest discover -s tests -v
+python scripts/run_scientific_regression.py --include-dynamics
+python scripts/run_experiment_regression.py
+```
+
+| Check | Inputs and coverage |
 | :--- | :--- |
-| `run_scientific_regression.py` | Calibrated opacity checksum and published anchors, static reference hashes, numerical checks, and optional dynamics/persistence |
-| `run_experiment_regression.py` | Configuration, previews, both dynamics modes, detached workers, versioning, cloning, and retained failures |
+| Background unit tests | Temporary synthetic files; portability, timing, validation, later-frame screening, and detector-free imports |
+| Scientific regression | Included three-frame reference fixture and calibration archive; exact image hashes, numerical checks, and dynamics/persistence |
+| Experiment regression | Local prepared library and FFmpeg/FFprobe; previews, caches, workers, both dynamics modes, versioning, cloning, and failures |
+
+Scientific regression expects its historical fixture for exact image hashes.
+Its `--dynamics-frames` value cannot exceed the fixture's three frames.
+
+## Benchmarks and diagnostics
 
 ```bash
-uv run --extra detector python scripts/run_scientific_regression.py --include-dynamics
-uv run --extra gui --extra detector python scripts/run_experiment_regression.py
+python scripts/benchmark_dynamics.py --frames 120
+python scripts/benchmark_preview.py --output scratch/preview_benchmark.json
+python scripts/plot_luna_height_model.py
 ```
 
-These checks use local observation and detector assets. Scientific regression
-expects the canonical background for its exact static hashes, and reads
-calibration provenance under `processed/heinzel_table1_extension_final/`.
-The GUI workflow regression also requires FFmpeg and FFprobe.
-
-## Benchmarks
-
-```bash
-uv run --extra detector python scripts/benchmark_dynamics.py --frames 240
-
-uv run --extra detector python scripts/benchmark_preview.py \
-  --h5 FITS_files/20140101.h5 \
-  --output scratch/preview_benchmark.json
-```
-
-`benchmark_dynamics.py` times simulation and both MP4 exports in automatically
-removed temporary storage. `benchmark_preview.py` measures fixed-seed cold/warm
-preview stages, cache behavior, scientific hashes, and process-tree memory.
-See [performance controls](../docs/PERFORMANCE.md) for options.
-
-## Scientific diagnostics
-
-```bash
-uv run python scripts/plot_luna_height_model.py
-```
-
-Exports the 1–100 Mm gravity, cut-off, period, and seismological-inversion table
-and plots. Use `--help` to inspect output options.
+The first two use prepared backgrounds; see [performance controls](../docs/PERFORMANCE.md).
+The height-model script exports gravity, cut-off, period, and inversion tables and
+figures to `scratch/luna_height_model/` by default.
 
 ## Notebook tooling
 
-| Script | Purpose |
-| :--- | :--- |
-| `build_refactored_notebook.py` | Generate `notebooks/07_refactored_forward_model.ipynb` from source cells |
-| `execute_refactored_notebook.py` | Execute that notebook top to bottom in place |
-
-See the [notebook workflow](../notebooks/README.md) for dependencies and commands.
+`build_refactored_notebook.py` generates the reference notebook from source cells.
+`execute_refactored_notebook.py` executes it in place. See the
+[notebook workflow](../notebooks/README.md).

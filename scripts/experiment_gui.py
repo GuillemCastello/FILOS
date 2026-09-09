@@ -11,7 +11,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +19,10 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st  # noqa: E402
 
+from synthetic_filaments.dynamic_background import (  # noqa: E402
+    background_info,
+    resolve_background_path,
+)
 from synthetic_filaments.experiment_config import (  # noqa: E402
     clone_simulation_as_experiment,
     create_experiment,
@@ -39,6 +42,7 @@ from synthetic_filaments.experiment_runner import (  # noqa: E402
     start_experiment_worker,
 )
 from synthetic_filaments.oscillation import luna_2022_longitudinal_period_s  # noqa: E402
+from synthetic_filaments.paths import DEFAULT_BACKGROUNDS_DIR  # noqa: E402
 
 st.set_page_config(page_title="Synthetic filament experiments", page_icon="☀️", layout="wide")
 
@@ -86,8 +90,8 @@ FIELD_HELP = {
         "Recorded for compatibility. Static synthesis uses the published "
         "height-dependent source-function interpolation."
     ),
-    "use_detector": "Exclude HDF5 crop candidates that overlap detected real filaments.",
-    "oscillation_mode": (
+    "h5_background_path": "A prepared sequence file or a directory of prepared backgrounds.",
+    "frame_step": "Read every nth background frame. Simulation cadence follows the file timing.",    "oscillation_mode": (
         "Manual uses one shared period; Luna derives each longitudinal period from dip curvature "
         "and realized dip-bottom height."
     ),
@@ -517,7 +521,7 @@ def _preview_progress_callback(
     stage_order = {
         name: index
         for index, name in enumerate(
-            ("validation", "background", "detector", "spine", "geometry", "plasma", "render", "diagnostics")
+            ("validation", "background", "spine", "geometry", "plasma", "render", "diagnostics")
         )
     }
     status = st.status("Preparing static preview…", expanded=True)
@@ -525,10 +529,14 @@ def _preview_progress_callback(
     progress = st.progress(0.0, text="Estimating remaining work…")
     stage_lines: dict[str, str] = {}
     timing_history = st.session_state.get(f"preview-timings:{identifier}", [])
-    target_pixels = int(config["dynamic_background"]["crop_height_px"]) * int(
-        config["dynamic_background"]["crop_width_px"]
-    )
-    detector_requested = bool(config["dynamic_background"]["use_detector"])
+    target_pixels = 448 * 448
+    try:
+        source = Path(config["inputs"]["h5_background_path"]).expanduser()
+        source = source if source.is_absolute() else ROOT / source
+        info = background_info(resolve_background_path(source, config["dynamic_background"]["seed"]))
+        target_pixels = info["shape"][1] * info["shape"][2]
+    except (OSError, ValueError, KeyError):
+        pass  # The preview action reports invalid inputs inside its error handler.
     current_thread_count: int | None = None
     current_sampled_point_count: int | None = None
     projected_placement_attempts: float | None = None
@@ -568,8 +576,7 @@ def _preview_progress_callback(
         comparable = [
             item
             for item in timing_history[-5:]
-            if bool(item.get("detector_requested")) == detector_requested
-            and (
+            if (
                 background_cached is None
                 or bool(item.get("background_cached")) == background_cached
             )
@@ -744,21 +751,25 @@ def _experiment_page(experiment: Path | None) -> None:
                 "the published height interpolation."
             )
 
-        with st.expander("HDF5 background selection"):
-            _edit_fields(config, "inputs", list(config["inputs"]), prefix)
-            background_names = list(config["dynamic_background"])
-            inactive_detector = (
-                set()
-                if config["dynamic_background"]["use_detector"]
-                else {"detection_threshold", "box_expand_fraction", "box_expand_px"}
+        with st.expander("Background sequence"):
+            library = sorted(DEFAULT_BACKGROUNDS_DIR.glob("*.h5"))
+            choices = ["backgrounds"] + [str(path.relative_to(ROOT)) for path in library]
+            current = config["inputs"]["h5_background_path"]
+            selected = st.selectbox(
+                "Prepared background", choices + ["Custom path…"],
+                index=choices.index(current) if current in choices else len(choices),
+                format_func=lambda value: "Library (choose by background seed)" if value == "backgrounds" else value,
+                key=f"{prefix}:background-choice",
             )
-            _edit_fields(
-                config,
-                "dynamic_background",
-                background_names,
-                prefix,
-                disabled_names=inactive_detector,
+            custom = st.text_input(
+                "Custom file or directory", value="" if current in choices else current,
+                key=f"{prefix}:background-path", help="Used when Custom path is selected above.",
             )
+            config["inputs"]["h5_background_path"] = custom.strip() if selected == "Custom path…" else selected
+            _edit_fields(config, "dynamic_background", list(config["dynamic_background"]), prefix)
+            st.caption("Dimensions and cadence come from the sequence. No detector is needed.")
+            if not library:
+                st.info("Add supplied .h5 sequences to backgrounds/, or prepare them using the README guide.")
 
         with st.expander("Dynamics"):
             _edit_fields(config, "dynamics", list(config["dynamics"]), prefix)
@@ -772,6 +783,16 @@ def _experiment_page(experiment: Path | None) -> None:
         preview_requested = buttons[1].form_submit_button("Generate preview", type="primary")
         run_requested = buttons[2].form_submit_button("Generate video")
 
+    try:
+        source = Path(config["inputs"]["h5_background_path"]).expanduser()
+        source = source if source.is_absolute() else ROOT / source
+        source = resolve_background_path(source, config["dynamic_background"]["seed"])
+        info = background_info(source)
+        cadence = info["cadence_s"] * config["dynamic_background"]["frame_step"]
+        st.caption(f"Background: {source.name} · {info['shape'][2]} × {info['shape'][1]} pixels · "
+                   f"{info['shape'][0]} frames · simulation cadence {cadence:g} s")
+    except (OSError, ValueError, KeyError) as error:
+        st.info(str(error))
     st.session_state[draft_key] = deepcopy(config)
     unsaved, preview_current = state_flags(config)
     saved_state_indicator.info(
@@ -846,7 +867,6 @@ def _experiment_page(experiment: Path | None) -> None:
                         "placement_attempts"
                     ],
                     "native_shape_yx": new_preview["frame_zero"]["native_shape_yx"],
-                    "detector_requested": config["dynamic_background"]["use_detector"],
                     "background_cached": any(
                         event.get("stage") == "background" and event.get("cached") is True
                         for event in new_preview["progress_events"]

@@ -100,7 +100,7 @@ def generate_from_h5_background(
     """Generate one static filament directly on HDF5 sequence frame zero.
 
     ``backgrounds`` must be the plain dictionary returned by
-    :func:`load_h5_background_sequence`. The observing geometry and detector
+    :func:`load_h5_background_sequence`. The observing geometry and background
     scale are taken from that dictionary, so the returned image is already the
     exact initial condition for a dynamics run. Source HDF5 arrays are read but
     never modified.

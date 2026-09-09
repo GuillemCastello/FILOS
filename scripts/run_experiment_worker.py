@@ -9,7 +9,6 @@ import sys
 import traceback
 from pathlib import Path
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -55,7 +55,6 @@ import os
 import sys
 import time
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
 
 import h5py
@@ -140,8 +139,7 @@ print(json.dumps({
         r"""
 ## Real GONG context
 
-The loader deterministically selects one quiet crop from HDF5 frame zero, then
-uses those exact pixel bounds for every video frame. The raw background is
+The loader reads a prepared quiet-Sun sequence with its recorded observing geometry. The raw background is
 retained pixel-for-pixel; only the synthetic transmission is blurred and
 detector-integrated.
 """
@@ -152,7 +150,7 @@ background_started = time.perf_counter()
 backgrounds = load_h5_background_sequence(
     H5_BACKGROUND_PATH,
     n_frames=DYNAMICS_FRAME_COUNT if RUN_DYNAMICS else 1,
-    seed=RESOLVED_EXPERIMENT["dynamics"]["seed"],
+    seed=RESOLVED_EXPERIMENT["background_seed"],
     **RESOLVED_EXPERIMENT["dynamic_background"],
 )
 BACKGROUND_SELECTION_SECONDS = time.perf_counter() - background_started
@@ -371,7 +369,7 @@ if RUN_DYNAMICS:
             DYNAMICS_TIMING["simulation_s"] / DYNAMICS_CONFIG["n_frames"]
         )
     print("HDF5 crop:", backgrounds["metadata"]["crop_xyxy_px"])
-    print("Detector boxes:", backgrounds["metadata"]["n_exclusion_boxes"])
+    print("Sequence cadence:", backgrounds["cadence_s"])
     print("Dynamics mode:", DYNAMICS_CONFIG["oscillation_mode"])
     print("Saved dynamics:", None if SAVED_DYNAMICS is None else SAVED_DYNAMICS["directory"])
     print("Dynamics timing [s]:", json.dumps(DYNAMICS_TIMING, indent=2))

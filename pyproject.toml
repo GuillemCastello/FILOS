@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-detector = [
+prepare = [
     "timm>=1.0,<2",
     "torch==2.9.1",
     "torchvision==0.24.1",

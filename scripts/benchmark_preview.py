@@ -24,7 +24,6 @@ from typing import Any
 
 import numpy as np
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
 os.environ.setdefault("MPLBACKEND", "Agg")
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +39,6 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--reference-cap", type=int)
     parser.add_argument("--small-cap", type=int, default=100)
     parser.add_argument("--skip-small", action="store_true")
-    parser.add_argument("--disable-detector", action="store_true")
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--workers", type=int)
     parser.add_argument("--profile", action="store_true", help="Run a separate cProfile pass")
@@ -109,7 +107,7 @@ def _tree_rss(pid: int) -> int:
 
 
 def _worker(args: argparse.Namespace) -> None:
-    from synthetic_filaments import detector, generate_experiment_preview
+    from synthetic_filaments import generate_experiment_preview
 
     config = json.loads(args.worker_config.read_text())
     cache: dict[str, Any] = {}
@@ -172,8 +170,6 @@ def _worker(args: argparse.Namespace) -> None:
     report = {
         "config": config, "measurements": rows,
         "instrumentation": "cProfile" if args.worker_profile else "wall_clock_with_RSS_sampling",
-        "detector_device": None if detector._DETECTOR_STATE is None else str(
-            detector._DETECTOR_STATE["device"]),
         "n_threads": len(state["threads"]),
         "sampled_point_count": sum(len(t["s"]) for t in state["threads"]),
         "placement": preview["thread_placement"],
@@ -213,8 +209,6 @@ def main() -> None:
                                    ("static", "thread_count_cap", args.reference_cap)):
         if value is not None:
             config[section][field] = value
-    if args.disable_detector:
-        config["dynamic_background"]["use_detector"] = False
     artifacts = args.output.parent / (args.output.stem + "_runs")
     artifacts.mkdir(parents=True, exist_ok=True)
     cases = [("reference", config)]

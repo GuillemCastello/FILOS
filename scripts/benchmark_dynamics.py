@@ -10,16 +10,15 @@ import tempfile
 import time
 from pathlib import Path
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
 
 from run_scientific_regression import (  # noqa: E402
-    DEFAULT_H5,
     canonical_dynamics_config,
     canonical_static_result,
 )
 
-from synthetic_filaments import (  # noqa: E402
+from synthetic_filaments import (
+    DEFAULT_H5_DYNAMICS_PATH,  # noqa: E402
     load_h5_background_sequence,
     make_export_config,
     save_gong_video,
@@ -32,7 +31,7 @@ def _parse_arguments() -> argparse.Namespace:
     """Return validated command-line controls."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--frames", type=int, default=30)
-    parser.add_argument("--h5-background", type=Path, default=DEFAULT_H5)
+    parser.add_argument("--h5-background", type=Path, default=DEFAULT_H5_DYNAMICS_PATH)
     parser.add_argument("--compression", choices=("gzip", "lzf", "none"), default="lzf")
     arguments = parser.parse_args()
     if arguments.frames < 1:
@@ -47,13 +46,12 @@ def main() -> None:
     dynamics_config = canonical_dynamics_config(arguments.frames)
     backgrounds = load_h5_background_sequence(
         arguments.h5_background,
-        crop_shape=(448, 448),
         n_frames=arguments.frames,
         seed=int(dynamics_config["seed"]),
         start_index=0,
         frame_step=1,
-        use_detector=True,
     )
+    dynamics_config["cadence_s"] = backgrounds["cadence_s"]
     backgrounds_finished = time.perf_counter()
     initial = canonical_static_result(
         arguments.h5_background,

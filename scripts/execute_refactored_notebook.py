@@ -12,7 +12,6 @@ from nbclient import NotebookClient
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOK = ROOT / "notebooks/07_refactored_forward_model.ipynb"
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
 os.environ.setdefault("JUPYTER_RUNTIME_DIR", "/tmp/filament-modelling-jupyter")
 

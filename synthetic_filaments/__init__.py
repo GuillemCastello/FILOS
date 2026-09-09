@@ -20,7 +20,6 @@ from .config import (
 from .degradation import degrade_transmission
 from .dynamic_background import (
     DEFAULT_H5_DYNAMICS_PATH,
-    load_h5_background_frames_at_crop,
     load_h5_background_sequence,
 )
 from .dynamics import (
@@ -143,7 +142,6 @@ __all__ = [
     "list_jobs",
     "list_standalone_simulations",
     "load_experiment_config",
-    "load_h5_background_frames_at_crop",
     "load_h5_background_sequence",
     "load_heinzel_opacity_table",
     "load_preview",

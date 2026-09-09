@@ -83,7 +83,7 @@ def _load_detector(model_path: str | Path = DETECTOR_MODEL_PATH) -> dict[str, An
         from transformers import DetrForObjectDetection, DetrImageProcessor
     except ImportError as error:
         raise RuntimeError(
-            "detector extras are unavailable; run `uv sync --extra detector`"
+            "detector extras are unavailable; run `python -m pip install -e '.[prepare]'`"
         ) from error
 
     previous_offline_environment = os.environ.get("HF_HUB_OFFLINE")
@@ -160,7 +160,7 @@ def detect_filament_boxes(
         from torchvision.transforms.functional import to_tensor
     except ImportError as error:
         raise RuntimeError(
-            "detector extras are unavailable; run `uv sync --extra detector`"
+            "detector extras are unavailable; run `python -m pip install -e '.[prepare]'`"
         ) from error
     state = _load_detector(model_path)
     tensor = to_tensor(values).to(torch.float32)

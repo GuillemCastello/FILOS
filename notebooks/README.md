@@ -3,17 +3,15 @@
 [Project README](../README.md)
 
 Shared reference notebooks belong here. Keep personal experiments in `local/`,
-whose contents are ignored by Git. The former `testing/test.ipynb` scratch file
-has been moved there unchanged; it is an empty placeholder.
+whose contents are ignored by Git.
 
 ## Reference workflow
 
-The reference notebook is generated from the source cells in
-[`scripts/build_refactored_notebook.py`](../scripts/build_refactored_notebook.py).
-It is not included in this checkout. Generate it from the repository root:
+After the standard pip installation, generate the reference notebook from the
+repository root:
 
 ```bash
-uv run --extra notebook python scripts/build_refactored_notebook.py
+python scripts/build_refactored_notebook.py
 ```
 
 This writes `notebooks/07_refactored_forward_model.ipynb`, overwriting that file
@@ -21,17 +19,21 @@ if it already exists. It does not run a simulation. Open it in a notebook-capabl
 editor using the project's Python environment, or execute it in place:
 
 ```bash
-uv run --extra notebook --extra detector python scripts/execute_refactored_notebook.py
+python scripts/execute_refactored_notebook.py
 ```
 
-Execution requires the [local observation and detector assets](../docs/DATA.md).
-The notebook's full workflow also exports videos through FFmpeg. For its reduced
-validation mode (three frames, no videos, output under `scratch/`):
+Execution uses the prepared background selected by `configs/default_experiment.toml`.
+The full workflow exports videos through FFmpeg. For reduced validation (three
+frames, no videos, output under `scratch/`):
 
 ```bash
-FILAMENT_NOTEBOOK_FAST=1 uv run --extra notebook --extra detector \
-  python scripts/execute_refactored_notebook.py
+FILAMENT_NOTEBOOK_FAST=1 python scripts/execute_refactored_notebook.py
 ```
 
-For pip environments, install `python -m pip install -e '.[notebook,detector]'`
-and replace `uv run --extra notebook --extra detector python` with `python`.
+The executor uses the `python3` Jupyter kernel. If your editor or Jupyter setup
+points that kernel at another environment, register this project's environment
+before execution:
+
+```bash
+python -m ipykernel install --user --name python3 --display-name "Python (FILOS)"
+```

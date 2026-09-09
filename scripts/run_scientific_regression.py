@@ -11,7 +11,6 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
 
 import h5py
@@ -48,7 +47,7 @@ from synthetic_filaments.geometry import make_spine, make_threads
 from synthetic_filaments.plasma import MASS_INTEGRATION_MAX_INTERVALS, assign_plasma
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_H5 = ROOT / "FITS_files/20140101.h5"
+DEFAULT_H5 = ROOT / "tests/data/reference_background.h5"
 HEINZEL_PROVENANCE_ROOT = ROOT / "processed/heinzel_table1_extension_final"
 
 # September 2026 radius-only reference with nested Simpson mass integration.
@@ -182,12 +181,10 @@ def canonical_static_result(
     if backgrounds is None:
         backgrounds = load_h5_background_sequence(
             h5_path,
-            crop_shape=(448, 448),
             n_frames=1,
             seed=1236,
             start_index=0,
             frame_step=1,
-            use_detector=True,
         )
     return generate_from_h5_background(
         backgrounds,
@@ -463,14 +460,12 @@ def check_dynamics(
     """Check real-background alignment, frame zero, dynamics, and HDF5 output."""
     backgrounds = load_h5_background_sequence(
         h5_path,
-        crop_shape=(448, 448),
         n_frames=n_frames,
         seed=1236,
         start_index=0,
         frame_step=1,
-        use_detector=True,
     )
-    expected_bounds = (982, 1293, 1430, 1741)
+    expected_bounds = (0, 0, 448, 448)
     if tuple(backgrounds["metadata"]["crop_xyxy_px"]) != expected_bounds:
         raise AssertionError(f"HDF5 crop changed: {backgrounds['metadata']['crop_xyxy_px']}")
 

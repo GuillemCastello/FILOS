@@ -1,9 +1,9 @@
 [experiment]
-name = "notebook-07"
-description = "Notebook 07 reference experiment"
+name = "readme-example"
+description = "120-frame Luna example on a prepared GONG quiet-Sun sequence"
 
 [inputs]
-h5_background_path = "backgrounds"
+h5_background_path = "backgrounds/20140101-0341-1128-1195.h5"
 
 [static]
 seed = 1235

@@ -1,11 +1,14 @@
-# Local detector assets
+# Optional preparation detector
 
-Place the separately supplied detector in `models/detector_v1/` with its
-`config.json` and `model.safetensors` files. The Python detector integration lives
-in [`synthetic_filaments/detector.py`](../synthetic_filaments/detector.py).
+The detector is only used when preparing a background library with
+`--use-detector`. Simulations and the GUI do not import it.
 
-Model assets are ignored by Git. Keep this directory name: the runtime loads the
-model from this location. Install the `detector` extra when using detection, or
-disable `dynamic_background.use_detector` in an experiment to run without it.
+Supply `models/detector_v1/config.json` and `models/detector_v1/model.safetensors`,
+then install the optional dependencies:
 
-See [data and outputs](../docs/DATA.md).
+```bash
+python -m pip install -e '.[prepare]'
+python scripts/prepare_backgrounds.py --use-detector
+```
+
+Model assets are ignored by Git. See [background preparation](../docs/BACKGROUNDS.md).

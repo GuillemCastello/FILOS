@@ -14,7 +14,6 @@ import time
 from copy import deepcopy
 from pathlib import Path
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
 
 import h5py
@@ -254,11 +253,12 @@ def main() -> None:
     _check_runtime_cache_contract()
     default = load_experiment_config(DEFAULT_EXPERIMENT_CONFIG_PATH)
     resolved = validate_experiment_config(default)
+    default["inputs"]["h5_background_path"] = str(resolved["inputs"]["h5_background_path"])
     expected = {
         "static_seed": 1235,
         "background_seed": 1236,
         "dynamics_seed": 1236,
-        "n_frames": 240,
+        "n_frames": 120,
         "crop_shape": (448, 448),
         "mode": OSCILLATION_MODE_LUNA_2022,
         "compression": "lzf",
@@ -270,7 +270,7 @@ def main() -> None:
         "background_seed": resolved["background_seed"],
         "dynamics_seed": resolved["dynamics"]["seed"],
         "n_frames": resolved["dynamics"]["n_frames"],
-        "crop_shape": resolved["dynamic_background"]["crop_shape"],
+        "crop_shape": resolved["h5_dataset_shape"][1:],
         "mode": resolved["dynamics"]["oscillation_mode"],
         "compression": resolved["export"]["compression"],
         "fps": resolved["video"]["fps"],
@@ -354,7 +354,6 @@ def main() -> None:
 
     cache_config = deepcopy(default)
     cache_config["static"]["thread_count_cap"] = 1
-    cache_config["dynamic_background"]["use_detector"] = False
     stage_cache: dict[str, object] = {}
     cache_base = generate_experiment_preview(cache_config, cached_stages=stage_cache)
 
@@ -387,9 +386,7 @@ def main() -> None:
         raise AssertionError("observation edits recomputed unchanged diagnostic figures")
 
     background_config = deepcopy(cache_config)
-    background_config["dynamic_background"]["seed"] = next_background_seed(
-        cache_config["dynamic_background"]["seed"]
-    )
+    background_config["dynamic_background"]["start_index"] = 1
     background_cached = generate_experiment_preview(background_config, cached_stages=stage_cache)
     background_fresh = generate_experiment_preview(background_config, cached_stages={})
     if (

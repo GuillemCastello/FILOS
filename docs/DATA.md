@@ -2,49 +2,34 @@
 
 [Documentation index](README.md)
 
-## Observations
+## Inputs
 
-The default configuration reads `FITS_files/20140101.h5`. Despite the directory
-name, this workflow consumes an HDF5 sequence, with a `time_series` dataset
-arranged as `(frame, height, width)`. Supply the observation file separately; the
-repository does not download it.
+Simulations read self-contained background sequences from `backgrounds/` or a
+custom file/directory path. Each contains the observation pixels, regular time
+axis, pixel scale, and disk position. See the [background guide](BACKGROUNDS.md)
+for the format and one-time preparation process.
 
-Use `inputs.h5_background_path` in an experiment to select another compatible
-sequence. Relative paths resolve against the project root. The requested crop,
-starting frame, frame spacing, and number of frames must fit the source data.
-The default profile requests 240 frames at a cadence of 60 seconds.
-
-## Detector assets
-
-Place the local model in this layout:
-
-```text
-FilamentSegmentator/
-└── models/
-    └── detector_v1/
-        ├── config.json
-        └── model.safetensors
-```
-
-The detector uses locally supplied weights to exclude background crops containing
-real filaments. It requires the `detector` dependency extra and loads the model
-offline. The default experiment enables it; set
-`dynamic_background.use_detector = false` to select crops without detection.
-
-The Streamlit launcher sets `CUDA_VISIBLE_DEVICES=1` only if that variable is not
-already defined. Set it before launch to select a different GPU, or use an empty
-value for CPU execution. The detector uses CPU when CUDA is unavailable.
+Full-disk sources in `FITS_files/` and detector weights in `FilamentSegmentator/`
+are only preparation inputs. They are not needed to run a prepared background.
+Large input and output HDF5 files stay local and are ignored by Git.
 
 ## Configuration
 
 [`configs/default_experiment.toml`](../configs/default_experiment.toml) is the
-template for new experiments. Its sections group experiment metadata, observation
-inputs, static geometry/plasma, dynamic background selection, oscillation dynamics,
-dataset export, and video settings.
+starting profile for new experiments. Choose the background through
+`inputs.h5_background_path`: a prepared file or library directory. Relative paths
+resolve against the project root.
 
-Use the GUI to save each experiment's configuration. Existing experiments and run
-snapshots have their own TOML files; changing the shared default does not rewrite
-those saved files.
+`dynamic_background` contains the library selection seed, starting frame, and
+frame step. The dimensions and cadence come from the chosen file. The default
+run uses 120 frames. Each experiment saves its own settings; changing the shared
+default does not rewrite existing experiments.
+
+For command-line use:
+
+```bash
+python scripts/run_experiment.py --config configs/default_experiment.toml
+```
 
 ## Generated results
 
@@ -59,22 +44,30 @@ simulations/
             └── <simulation-id>/
                 ├── experiment.toml
                 ├── simulation.h5
+                ├── simulation.json
+                ├── static_state/
+                ├── frame_zero_comparison.png
+                ├── geometry_diagnostics.png
                 ├── gong.mp4
                 └── velocity.mp4
 ```
 
-Runs also contain supporting metadata. The interface can load standalone
-simulations and clone them into experiments. All simulation output stays local
-and is ignored by Git.
+Production jobs freeze the selected background path into their configuration
+snapshot. Input metadata and the static preview are checked before the worker
+runs. The saved HDF5 contains the background pixels used in the simulation.
+The interface can load standalone simulations and clone them into experiments.
 
-Production generation requires FFmpeg with `libx264` available on `PATH` for its
-two MP4 exports. The GUI regression additionally uses FFprobe to inspect videos.
-HDF5 export defaults to lossless LZF compression; see
-[performance controls](PERFORMANCE.md) for alternatives.
+Production requires FFmpeg with `libx264` on `PATH`. GUI workflow regression also
+uses FFprobe. HDF5 export defaults to lossless LZF compression; see
+[performance controls](PERFORMANCE.md).
 
-## Packaged scientific assets
+## Scientific reference assets
 
 The opacity table and measured-spine library in `synthetic_filaments/data/` ship
-with the Python package. Keep them in version control. The full calibration
-archive lives in [`processed/`](../processed/README.md); scientific regression
-compares its master table against the runtime copy.
+with the Python package. The calibration archive lives in
+[`processed/`](../processed/README.md).
+
+`tests/data/reference_background.h5` is a small, three-frame extract of the
+historical observation crop. It preserves exact scientific-regression checks
+without requiring full-disk data or detector weights. It is a test fixture,
+separate from the screened background library.

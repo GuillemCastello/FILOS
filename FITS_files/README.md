@@ -1,10 +1,13 @@
-# Local observations
+# Full-disk source observations
 
-Place separately supplied GONG observation sequences here. The default experiment
-reads `20140101.h5`, with a `time_series` dataset of shape `(frame, height, width)`.
+Place source GONG `.h5` files here for one-time background preparation. Each needs
+`time_series` images shaped `(time, height, width)` and matching `tdeltas` timestamps
+in seconds, with aligned solar-disk support.
 
-Observation files are ignored by Git. Keep this directory name: it is the
-runtime's default input location. To use another file, set
-`inputs.h5_background_path` in your experiment configuration.
+```bash
+python scripts/prepare_backgrounds.py
+```
 
-See [data and outputs](../docs/DATA.md).
+Simulations read the resulting portable sequences in `backgrounds/`; they do not
+open these full-disk files. Source files are ignored by Git. See the
+[background guide](../docs/BACKGROUNDS.md).

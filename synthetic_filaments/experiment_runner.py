@@ -21,9 +21,7 @@ import h5py
 import numpy as np
 
 from .cache import stage_cache
-from .detector import detector_model_identity
 from .dynamic_background import (
-    load_h5_background_frames_at_crop,
     load_h5_background_sequence,
 )
 from .experiment_config import (
@@ -60,7 +58,7 @@ from .video import (
 )
 
 StatusCallback = Callable[[str, Mapping[str, Any]], None]
-PREVIEW_RENDER_VERSION = 6
+PREVIEW_RENDER_VERSION = 7
 STATIC_STATE_SNAPSHOT_VERSION = 1
 
 _GEOMETRY_STATIC_FIELDS = {
@@ -423,14 +421,13 @@ def _cache_key(value: object) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest().upper()
 
 
-def _cache_input_stamps(source: Path, *, use_detector: bool) -> dict[str, Any]:
+def _cache_input_stamps(source: Path) -> dict[str, Any]:
     """Extra runtime invalidation, independent of persisted scientific fingerprints."""
     return {
         "files": {
             str(path.resolve()): path.stat().st_ctime_ns
             for path in (source, SPINE_LIBRARY_PATH, HEINZEL_EXTENSION_PATH)
         },
-        "detector": detector_model_identity() if use_detector else None,
     }
 
 
@@ -522,9 +519,7 @@ def generate_experiment_preview(
 
     source_path = Path(resolved["inputs"]["h5_background_path"])
     source_stat = source_path.stat()
-    input_stamps = _cache_input_stamps(
-        source_path, use_detector=bool(resolved["dynamic_background"]["use_detector"]),
-    )
+    input_stamps = _cache_input_stamps(source_path)
     background_key = _cache_key(
         {
             "path": source_path,
@@ -533,7 +528,6 @@ def generate_experiment_preview(
             "ctime_ns": source_stat.st_ctime_ns,
             "background_seed": resolved["background_seed"],
             "loader": resolved["dynamic_background"],
-            "detector_model": input_stamps["detector"],
         }
     )
     backgrounds = _cached_stage(cache, "background", background_key)
@@ -544,7 +538,6 @@ def generate_experiment_preview(
         _store_stage(cache, "background", background_key, backgrounds)
     else:
         complete_stage("background", time.monotonic(), "Background selection reused.", cached=True)
-        complete_stage("detector", time.monotonic(), "Detector selection reused.", cached=True)
 
     static_config = make_h5_static_config(
         backgrounds,
@@ -735,8 +728,7 @@ def generate_experiment_preview(
             "disk_mu": float(backgrounds["disk_mu"]),
             "limb_direction_deg": float(backgrounds["limb_direction_deg"]),
             "native_pixel_km": float(backgrounds["native_pixel_km"]),
-            "detector_used": bool(backgrounds["metadata"]["detector_used"]),
-            "n_exclusion_boxes": backgrounds["metadata"]["n_exclusion_boxes"],
+            "background_file": str(backgrounds["source_path"]),
             "orientation_deg": float(initial_result["config"]["orientation_deg"]),
             "chirality": int(initial_result["config"]["chirality"]),
             "spine_library_index": int(metadata["spine_library_index"]),
@@ -776,8 +768,6 @@ def preview_is_current(
     if stamps is not None:
         try:
             if any(Path(path).stat().st_ctime_ns != value for path, value in stamps["files"].items()):
-                return False
-            if stamps["detector"] is not None and stamps["detector"] != detector_model_identity():
                 return False
         except OSError:
             return False
@@ -898,6 +888,7 @@ def start_experiment_worker(
     experiment.mkdir(parents=True, exist_ok=True)
     (experiment / "runs").mkdir(exist_ok=True)
     save_experiment_config(current_config, config_path)
+    current_config["inputs"]["h5_background_path"] = str(resolved["inputs"]["h5_background_path"])
     config_hash = experiment_config_sha256(current_config)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     job_id = f"job-{stamp}-{config_hash[:10].lower()}"
@@ -962,7 +953,6 @@ def start_experiment_worker(
         str(Path(experiments_root).resolve()),
     ]
     environment = dict(os.environ)
-    environment.setdefault("CUDA_VISIBLE_DEVICES", "1")
     environment.setdefault("MPLCONFIGDIR", "/tmp/filament-modelling-matplotlib")
     try:
         with log_path.open("ab", buffering=0) as log_handle:
@@ -1087,11 +1077,10 @@ def run_experiment(
     n_frames = int(resolved["dynamics"]["n_frames"])
     start_index = int(user_config["dynamic_background"]["start_index"])
     frame_step = int(user_config["dynamic_background"]["frame_step"])
-    frame_indices = start_index + frame_step * np.arange(n_frames, dtype=np.int64)
-    backgrounds = load_h5_background_frames_at_crop(
+    backgrounds = load_h5_background_sequence(
         resolved["inputs"]["h5_background_path"],
-        crop_xyxy_px=tuple(preview["frame_zero"]["crop_xyxy_px"]),
-        frame_indices=frame_indices,
+        n_frames=n_frames, start_index=start_index, frame_step=frame_step,
+        seed=resolved["background_seed"],
     )
     frozen_background_hash = preview["frame_zero"]["background_sha256"]
     loaded_background_hash = _array_sha256(np.asarray(backgrounds["frames"])[0])

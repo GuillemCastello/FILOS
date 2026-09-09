@@ -1,18 +1,25 @@
 # Experiment configuration
 
-[`default_experiment.toml`](default_experiment.toml) supplies the starting values
-for new GUI experiments and the generated reference notebook.
+[`default_experiment.toml`](default_experiment.toml) supplies starting values for
+new GUI experiments and the reference notebook.
+[`readme_example.toml`](readme_example.toml) reproduces the README demonstration.
 
 | Section | Controls |
 | :--- | :--- |
 | `experiment` | Name and description |
-| `inputs` | HDF5 background path |
+| `inputs` | Prepared background file or library directory |
 | `static` | Seed, geometry, plasma, opacity, and instrument response |
-| `dynamic_background` | Crop selection, frame selection, and detector settings |
-| `dynamics` | Oscillation mode, amplitudes, periods, damping, and cadence |
+| `dynamic_background` | Library selection seed, starting frame, and frame step |
+| `dynamics` | Oscillation mode, amplitudes, periods, damping, and frame count |
 | `export` | Masks, contrast, and dataset compression |
-| `video` | Frame rate and velocity visualization |
+| `video` | Playback frame rate and velocity visualization |
 
-Save individual experiments through the GUI; their configurations live under
-`simulations/experiments/`. Keep reusable shared presets here. See
-[data and outputs](../docs/DATA.md) for required inputs and saved-run locations.
+Spatial dimensions and simulation cadence are read from the background file;
+playback FPS is independent of physical cadence. Save individual experiments
+through the GUI or run a preset with:
+
+```bash
+python scripts/run_experiment.py --config configs/readme_example.toml
+```
+
+See [data and outputs](../docs/DATA.md).

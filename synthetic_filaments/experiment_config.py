@@ -28,8 +28,12 @@ from .config import (
     DEFAULT_SOURCE_FRACTION,
     make_static_config,
 )
-from .detector import DETECTOR_MODEL_PATH
-from .dynamic_background import H5_TIME_SERIES_KEY, _read_source_frame
+from .dynamic_background import (
+    H5_TIME_SERIES_KEY,
+    _read_source_frame,
+    background_info,
+    resolve_background_path,
+)
 from .dynamics import make_dynamics_config
 from .geometry import SPINE_LIBRARY_PATH
 from .opacity_table import HEINZEL_EXTENSION_PATH, heinzel_opacity_table_metadata
@@ -38,7 +42,7 @@ from .simulation_io import make_export_config
 
 DEFAULT_EXPERIMENT_CONFIG_PATH = PROJECT_ROOT / "configs/default_experiment.toml"
 DEFAULT_EXPERIMENTS_ROOT = PROJECT_ROOT / "simulations/experiments"
-STATIC_PREVIEW_FINGERPRINT_VERSION = 1
+STATIC_PREVIEW_FINGERPRINT_VERSION = 2
 STATIC_FORWARD_MODEL_REVISION = 3
 SOURCE_FUNCTION_POLICY = "heinzel2015_published_10_20_30Mm_clamped"
 
@@ -92,22 +96,10 @@ STATIC_FIELDS = (
     "mask_tau_threshold",
     "psf_sigma_px",
 )
-DYNAMIC_BACKGROUND_FIELDS = (
-    "seed",
-    "crop_height_px",
-    "crop_width_px",
-    "start_index",
-    "frame_step",
-    "random_attempts",
-    "use_detector",
-    "detection_threshold",
-    "box_expand_fraction",
-    "box_expand_px",
-)
+DYNAMIC_BACKGROUND_FIELDS = ("seed", "start_index", "frame_step")
 DYNAMICS_FIELDS = (
     "seed",
     "n_frames",
-    "cadence_s",
     "longitudinal_displacement_amplitude_km",
     "transverse_displacement_amplitude_km",
     "oscillation_mode",
@@ -189,13 +181,11 @@ def _auto_or_number(value: object, field_name: str) -> float | None:
 
 
 def normalize_experiment_config(config: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    """Normalize supported legacy fields and return independent TOML sections.
+    """Return independent sections, retaining old drafts for editing.
 
-    Older configurations used ``dynamics.seed`` for both motion and quiet-crop
-    selection. Copying that value into the new background section preserves the
-    previously selected crop without mutating the source mapping. Legacy dip
-    selectors and depth distributions are removed; existing curvature-radius
-    controls are retained, otherwise the maintained radius defaults are added.
+    Obsolete crop/detector controls and manual cadence are dropped. Full-disk
+    input paths must be replaced with prepared backgrounds before running.
+    Legacy dip-depth controls retain the existing curvature-radius migration.
     """
     root = _plain_mapping(config, "experiment configuration")
     static_section = root.get("static")
@@ -216,15 +206,18 @@ def normalize_experiment_config(config: Mapping[str, Any]) -> dict[str, dict[str
             upgraded_static.setdefault(name, value)
         root["static"] = upgraded_static
     background_section = root.get("dynamic_background")
-    dynamics_section = root.get("dynamics")
-    if isinstance(background_section, Mapping) and "seed" not in background_section:
-        if not isinstance(dynamics_section, Mapping) or "seed" not in dynamics_section:
-            raise ValueError(
-                "legacy [dynamic_background] without seed requires dynamics.seed for migration"
-            )
-        upgraded_background = deepcopy(dict(background_section))
-        upgraded_background["seed"] = deepcopy(dynamics_section["seed"])
-        root["dynamic_background"] = upgraded_background
+    if isinstance(background_section, Mapping):
+        background = dict(background_section)
+        background.setdefault("seed", root.get("dynamics", {}).get("seed", 0))
+        # Old drafts can be opened to choose a prepared background. Raw files are
+        # rejected by the loader; obsolete crop/detector controls have no meaning.
+        for name in ("crop_height_px", "crop_width_px", "random_attempts", "use_detector",
+                     "detection_threshold", "box_expand_fraction", "box_expand_px"):
+            background.pop(name, None)
+        root["dynamic_background"] = background
+    if isinstance(root.get("dynamics"), Mapping):
+        root["dynamics"] = dict(root["dynamics"])
+        root["dynamics"].pop("cadence_s", None)
     _require_exact_keys(root, EXPERIMENT_SECTIONS, "experiment configuration")
     sections: dict[str, dict[str, Any]] = {}
     for section_name in EXPERIMENT_SECTIONS:
@@ -288,40 +281,14 @@ def _inspect_h5_source(
     """Inspect one background source and optionally read its selected first frame."""
     if not path.is_file():
         raise FileNotFoundError(path)
-    with h5py.File(path, "r") as handle:
-        if H5_TIME_SERIES_KEY not in handle:
-            raise KeyError(f"{path} is missing dataset {H5_TIME_SERIES_KEY!r}")
-        dataset = handle[H5_TIME_SERIES_KEY]
-        if dataset.ndim != 3:
-            raise ValueError(
-                f"{H5_TIME_SERIES_KEY!r} must have shape (time, y, x); received {dataset.shape}"
-            )
-        shape = tuple(int(value) for value in dataset.shape)
-        available_frames, frame_height, frame_width = shape
-        if start_index >= available_frames:
-            raise IndexError(
-                "dynamic_background.start_index exceeds the available time axis; "
-                f"received={start_index}, available={available_frames}"
-            )
-        crop_height = dynamic_background["crop_height_px"]
-        crop_width = dynamic_background["crop_width_px"]
-        for name, value, maximum in (
-            ("dynamic_background.crop_height_px", crop_height, frame_height),
-            ("dynamic_background.crop_width_px", crop_width, frame_width),
-        ):
-            if int(value) > maximum:
-                raise ValueError(
-                    f"{name} must be an integer in [8, {maximum}]; received {value!r}"
-                )
-        if load_first_frame:
-            first_frame, _ = _read_source_frame(dataset, path, start_index, cached_stages)
-            if first_frame.shape != (frame_height, frame_width):
-                raise ValueError(
-                    "the selected HDF5 first frame has an unexpected shape; "
-                    f"received {first_frame.shape}"
-                )
-        dtype = str(dataset.dtype)
-    return shape, dtype
+    info = background_info(path)
+    shape = info["shape"]
+    if start_index >= shape[0]:
+        raise ValueError(f"Background has {shape[0]} frames; start_index is {start_index}")
+    if load_first_frame:
+        with h5py.File(path, "r") as handle:
+            _read_source_frame(handle[H5_TIME_SERIES_KEY], path, start_index, cached_stages)
+    return shape, info["dtype"]
 
 
 def _validate_dynamic_background(
@@ -329,64 +296,15 @@ def _validate_dynamic_background(
     *,
     preview: bool,
 ) -> tuple[int, dict[str, Any]]:
-    """Validate active crop-selection controls and return loader arguments."""
+    """Validate library selection and temporal controls."""
     arguments = dict(section)
-    for name, minimum in (
-        ("seed", 0),
-        ("start_index", 0),
-        ("random_attempts", 1),
-        ("crop_height_px", 8),
-        ("crop_width_px", 8),
-    ):
-        value = arguments[name]
-        if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
-            raise ValueError(
-                f"dynamic_background.{name} must be an integer >= {minimum}; "
-                f"received {value!r}"
-            )
     if preview:
         arguments["frame_step"] = 1
-    else:
-        frame_step = arguments["frame_step"]
-        if (
-            isinstance(frame_step, bool)
-            or not isinstance(frame_step, Integral)
-            or frame_step < 1
-        ):
-            raise ValueError(
-                "dynamic_background.frame_step must be an integer >= 1; "
-                f"received {frame_step!r}"
-            )
-    if not isinstance(arguments["use_detector"], bool):
-        raise TypeError("dynamic_background.use_detector must be true or false")
-    if arguments["use_detector"] or not preview:
-        threshold = arguments["detection_threshold"]
-        if (
-            isinstance(threshold, bool)
-            or not isinstance(threshold, Real)
-            or not np.isfinite(threshold)
-            or not 0.0 < float(threshold) < 1.0
-        ):
-            raise ValueError("dynamic_background.detection_threshold must lie in (0, 1)")
-        for name in ("box_expand_fraction", "box_expand_px"):
-            value = arguments[name]
-            if (
-                isinstance(value, bool)
-                or not isinstance(value, Real)
-                or not np.isfinite(value)
-                or value < 0.0
-            ):
-                raise ValueError(f"dynamic_background.{name} must be finite and >= 0")
-    else:
-        arguments["detection_threshold"] = 0.5
-        arguments["box_expand_fraction"] = 0.0
-        arguments["box_expand_px"] = 0.0
-    background_seed = int(arguments.pop("seed"))
-    loader_arguments = {
-        "crop_shape": (int(arguments.pop("crop_height_px")), int(arguments.pop("crop_width_px"))),
-        **arguments,
-    }
-    return background_seed, loader_arguments
+    for name, minimum in (("seed", 0), ("start_index", 0), ("frame_step", 1)):
+        value = arguments[name]
+        if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
+            raise ValueError(f"dynamic_background.{name} must be an integer >= {minimum}")
+    return int(arguments.pop("seed")), arguments
 
 
 def _validate_video(section: Mapping[str, Any]) -> dict[str, Any]:
@@ -442,6 +360,7 @@ def _resolve_static_section(
 
 def _resolve_run_sections(
     sections: Mapping[str, Mapping[str, Any]],
+    cadence_s: float = 60.0,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Resolve dynamics, export, and video sections for saving or production."""
 
@@ -454,7 +373,7 @@ def _resolve_run_sections(
     )
     if dynamics_values["oscillation_mode"] == "shared_period":
         dynamics_values["transverse_period_s"] = None
-    dynamics_config = make_dynamics_config(**dynamics_values)
+    dynamics_config = make_dynamics_config(cadence_s=cadence_s, **dynamics_values)
 
     export_values = dict(sections["export"])
     if export_values["compression"] == "none":
@@ -479,27 +398,7 @@ def _file_identity(path: Path) -> dict[str, Any]:
     }
 
 
-def _directory_identity(path: Path) -> dict[str, Any]:
-    """Return stat identities for files directly owned by one model directory."""
-    root = path.resolve()
-    if not root.is_dir():
-        raise FileNotFoundError(f"required detector model directory is unavailable: {root}")
-    files = []
-    for candidate in sorted(item for item in root.rglob("*") if item.is_file()):
-        stat = candidate.stat()
-        files.append(
-            {
-                "relative_path": candidate.relative_to(root).as_posix(),
-                "size_bytes": int(stat.st_size),
-                "mtime_ns": int(stat.st_mtime_ns),
-            }
-        )
-    if not files:
-        raise FileNotFoundError(f"required detector model directory contains no files: {root}")
-    return {"path": str(root), "files": files}
-
-
-def _preview_asset_identities(*, use_detector: bool) -> dict[str, Any]:
+def _preview_asset_identities() -> dict[str, Any]:
     """Return identities for scientific assets active in a static preview."""
     opacity_metadata = heinzel_opacity_table_metadata()
     identities = {
@@ -509,8 +408,6 @@ def _preview_asset_identities(*, use_detector: bool) -> dict[str, Any]:
         },
         "spine_library": _file_identity(SPINE_LIBRARY_PATH),
     }
-    if use_detector:
-        identities["detector_model"] = _directory_identity(DETECTOR_MODEL_PATH)
     return identities
 
 
@@ -530,7 +427,8 @@ def _resolve_preview_config(
         sections["dynamic_background"],
         preview=True,
     )
-    native_shape = tuple(int(value) for value in background_arguments["crop_shape"])
+    h5_path = resolve_background_path(h5_path, background_seed)
+    native_shape = background_info(h5_path)["shape"][1:]
     static_seed, static_overrides, static_config = _resolve_static_section(
         sections["static"],
         native_shape=native_shape,
@@ -538,10 +436,7 @@ def _resolve_preview_config(
     )
     h5_shape, h5_dtype = _inspect_h5_source(
         h5_path,
-        {
-            "crop_height_px": native_shape[0],
-            "crop_width_px": native_shape[1],
-        },
+        background_arguments,
         start_index=int(background_arguments["start_index"]),
         load_first_frame=load_first_frame,
         cached_stages=cached_stages,
@@ -552,7 +447,7 @@ def _resolve_preview_config(
         "dataset_shape": list(h5_shape),
         "dataset_dtype": h5_dtype,
     }
-    assets = _preview_asset_identities(use_detector=bool(background_arguments["use_detector"]))
+    assets = _preview_asset_identities()
     return {
         "inputs": {"h5_background_path": h5_path},
         "static_seed": static_seed,
@@ -594,8 +489,14 @@ def validate_save_config(
         sections["dynamic_background"],
         preview=False,
     )
-    dynamics_config, export_config, video_config = _resolve_run_sections(sections)
-    native_shape = tuple(int(value) for value in background_arguments["crop_shape"])
+    if check_inputs:
+        h5_path = resolve_background_path(h5_path, background_seed)
+        info = background_info(h5_path)
+        native_shape = info["shape"][1:]
+        cadence_s = info["cadence_s"] * background_arguments["frame_step"]
+    else:
+        native_shape, cadence_s = (448, 448), 60.0
+    dynamics_config, export_config, video_config = _resolve_run_sections(sections, cadence_s)
     static_seed, static_overrides, static_config = _resolve_static_section(
         sections["static"],
         native_shape=native_shape,
@@ -729,7 +630,7 @@ def next_experiment_seeds(static_seed: int, dynamics_seed: int) -> tuple[int, in
 
 
 def next_background_seed(background_seed: int) -> int:
-    """Derive the next explicit crop-selection seed without system entropy."""
+    """Derive the next explicit library-selection seed without system entropy."""
     if (
         isinstance(background_seed, bool)
         or not isinstance(background_seed, Integral)
@@ -946,10 +847,6 @@ def _clone_config_from_metadata(metadata: Mapping[str, Any]) -> dict[str, dict[s
                     )
                 except ValueError:
                     config["inputs"]["h5_background_path"] = str(resolved_source)
-            crop_shape = real_background.get("crop_shape")
-            if isinstance(crop_shape, list) and len(crop_shape) == 2:
-                config["dynamic_background"]["crop_height_px"] = crop_shape[0]
-                config["dynamic_background"]["crop_width_px"] = crop_shape[1]
             frame_indices = real_background.get("frame_indices")
             if isinstance(frame_indices, list) and frame_indices:
                 config["dynamic_background"]["start_index"] = int(frame_indices[0])
@@ -957,9 +854,6 @@ def _clone_config_from_metadata(metadata: Mapping[str, Any]) -> dict[str, dict[s
                     config["dynamic_background"]["frame_step"] = int(
                         frame_indices[1] - frame_indices[0]
                     )
-            detector_requested = real_background.get("detector_requested")
-            if isinstance(detector_requested, bool):
-                config["dynamic_background"]["use_detector"] = detector_requested
 
     if isinstance(static_parameters, Mapping):
         for name in STATIC_FIELDS:
