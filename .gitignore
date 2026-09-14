@@ -229,3 +229,7 @@ __marimo__/
 # Prepared background pixels stay local; include the schema and library inventory.
 /backgrounds/**/*.h5
 /backgrounds/**/*.partial
+
+# PDFs and other generated documents
+*.pdf
+*.tex

@@ -1610,7 +1610,7 @@ def _simulation_summary(
         "damping_time_s": dynamics_config.get("damping_time_s"),
         "brownian_step_min_km": dynamics_config.get("brownian_step_min_km"),
         "brownian_step_max_km": dynamics_config.get("brownian_step_max_km"),
-        "sphere_radius_km": dynamics_config.get("sphere_radius_km"),
+        "half_strength_distance_km": dynamics_config.get("half_strength_distance_km"),
         "background_source": static_config.get("background_source"),
         "disk_mu": static_config.get("disk_mu"),
         **statistics,

@@ -36,7 +36,7 @@ from .render import (
     rasterize_prepared_dynamic_tau,
 )
 
-DYNAMICS_SCHEMA_VERSION = 8
+DYNAMICS_SCHEMA_VERSION = 9
 BROWNIAN_RNG_STREAM_ID = 40_001
 
 _DYNAMICS_DEFAULTS: dict[str, object] = {
@@ -53,9 +53,7 @@ _DYNAMICS_DEFAULTS: dict[str, object] = {
     "brownian_step_max_km": 500.0,
     "center_spine_fraction": 0.55,
     "center_height_km": None,
-    "sphere_radius_km": 14_000.0,
-    "kernel_half_weight_radius_fraction": 0.85,
-    "kernel_power": 1.1,
+    "half_strength_distance_km": 11_900.0,
     "oscillation_start_time_s": 1_200.0,
 }
 
@@ -89,7 +87,7 @@ def _validate_dynamics_config(config: dict[str, object]) -> None:
         allowed = ", ".join(sorted(OSCILLATION_MODES))
         raise ValueError(f"oscillation_mode must be one of {allowed}; received {mode!r}")
 
-    for name in ("cadence_s", "period_s", "damping_time_s", "sphere_radius_km", "kernel_power"):
+    for name in ("cadence_s", "period_s", "damping_time_s", "half_strength_distance_km"):
         value = config[name]
         if not np.isfinite(value) or value <= 0.0:
             raise ValueError(f"{name} must be finite and > 0; received {value!r}")
@@ -142,12 +140,6 @@ def _validate_dynamics_config(config: dict[str, object]) -> None:
     if center_height is not None and (not np.isfinite(center_height) or center_height < 0.0):
         raise ValueError(
             f"center_height_km must be None or finite and >= 0; received {center_height!r}"
-        )
-    half_weight_fraction = config["kernel_half_weight_radius_fraction"]
-    if not 0.0 < half_weight_fraction <= 1.0:
-        raise ValueError(
-            "kernel_half_weight_radius_fraction must lie in (0, 1]; "
-            f"received {half_weight_fraction!r}"
         )
 
 
@@ -324,12 +316,13 @@ def _select_site(
 
     distances = np.linalg.norm(initial_centroids_km[material_indices] - center, axis=1)
     nearest_distance_km = float(distances[int(np.argmin(distances))])
-    sphere_radius_km = float(config["sphere_radius_km"])
-    if nearest_distance_km > sphere_radius_km:
+    material_weights = _local_weights(
+        initial_centroids_km[material_indices], {"center_xyz_km": center}, config
+    )
+    if not np.any(material_weights > 0.0):
         raise ValueError(
-            "the requested local sphere contains no material-bearing thread centroid; "
-            f"nearest distance={nearest_distance_km:.3f} km, "
-            f"sphere radius={sphere_radius_km:.3f} km"
+            "no material-bearing thread reaches 5% oscillation weight at the requested center; "
+            f"nearest distance={nearest_distance_km:.3f} km"
         )
 
     return {
@@ -352,21 +345,21 @@ def _local_weights(
     site: dict[str, object],
     config: dict[str, object],
 ) -> np.ndarray:
-    r"""Evaluate the compact super-Gaussian kernel at thread centroids.
+    r"""Evaluate distance-based oscillation weights at initial thread centroids.
 
-    Inside radius $R$, the weight at centroid distance $d$ is
+    The weight at centroid distance $d$ is
 
-    $$w(d)=\exp\left[-\ln(2)\left(\frac{d}{fR}\right)^p\right],$$
+    $$w(d)=\exp\left[-\ln(2)\left(\frac{d}{L}\right)^{1.1}\right],$$
 
-    where $f$ is the half-weight radius fraction and $p$ is the kernel power.
+    where $L$ is the distance at which oscillation amplitude falls to half
+    its value at the center. The decay shape is fixed at the original default.
+    Weights below 0.05 are set to zero.
     """
     center = np.asarray(site["center_xyz_km"], dtype=float)
     distance = np.linalg.norm(np.asarray(centroids_km, dtype=float) - center, axis=1)
-    sphere_radius_km = float(config["sphere_radius_km"])
-    half_weight_radius = float(config["kernel_half_weight_radius_fraction"]) * sphere_radius_km
-    normalized = distance / half_weight_radius
-    weights = np.exp(-np.log(2.0) * normalized ** float(config["kernel_power"]))
-    return np.where(distance <= sphere_radius_km, weights, 0.0)
+    normalized = distance / float(config["half_strength_distance_km"])
+    weights = np.exp(-np.log(2.0) * normalized ** 1.1)
+    return np.where(weights >= 0.05, weights, 0.0)
 
 
 def _sample_brownian_steps(

@@ -111,9 +111,7 @@ DYNAMICS_FIELDS = (
     "brownian_step_max_km",
     "center_spine_fraction",
     "center_height_km",
-    "sphere_radius_km",
-    "kernel_half_weight_radius_fraction",
-    "kernel_power",
+    "half_strength_distance_km",
     "oscillation_start_time_s",
 )
 EXPORT_FIELDS = (

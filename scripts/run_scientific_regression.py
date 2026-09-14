@@ -445,9 +445,7 @@ def canonical_dynamics_config(n_frames: int) -> dict[str, object]:
         brownian_step_max_km=500.0,
         center_spine_fraction=0.55,
         center_height_km=None,
-        sphere_radius_km=14_000.0,
-        kernel_half_weight_radius_fraction=0.85,
-        kernel_power=1.1,
+        half_strength_distance_km=11_900.0,
     )
 
 

@@ -97,8 +97,23 @@ FIELD_HELP = {
     ),
     "period_s": "Shared longitudinal period in manual mode; retained as metadata in Luna mode.",
     "transverse_period_s": "Used in Luna mode. Manual mode uses period_s for both components.",
-    "center_spine_fraction": "Automatic selects a deterministic material-bearing thread from the seed.",
-    "center_height_km": "Automatic uses the selected material-bearing thread centroid height.",
+    "center_spine_fraction": (
+        "Position along the filament: 0 is the start, 0.5 the middle, and 1 the end. "
+        "Automatic chooses a position using the simulation seed."
+    ),
+    "center_height_km": (
+        "Height of the oscillation center. Automatic uses the selected thread's center height."
+    ),
+    "half_strength_distance_km": (
+        "Distance from the center where oscillation amplitude falls to 50%. "
+        "Larger values affect more threads. Below 5%, oscillation is switched off."
+    ),
+    "longitudinal_displacement_amplitude_km": (
+        "Oscillation amplitude along the thread at the center; decreases with distance."
+    ),
+    "transverse_displacement_amplitude_km": (
+        "Oscillation amplitude across the thread at the center; decreases with distance."
+    ),
     "compression": "LZF is the maintained fast lossless default.",
     "video_lower_percentile": "Fixed frame-zero lower contrast percentile.",
     "video_upper_percentile": "Fixed frame-zero upper contrast percentile.",
@@ -112,6 +127,15 @@ FIELD_HELP = {
 
 def _label(name: str) -> str:
     """Return a compact human-readable field label."""
+    labels = {
+        "center_spine_fraction": "Oscillation center along filament (0–1)",
+        "center_height_km": "Oscillation center height (km)",
+        "half_strength_distance_km": "Half-strength distance (km)",
+        "longitudinal_displacement_amplitude_km": "Along-thread amplitude at center (km)",
+        "transverse_displacement_amplitude_km": "Across-thread amplitude at center (km)",
+    }
+    if name in labels:
+        return labels[name]
     replacements = {"km": "km", "px": "px", "mm": "Mm", "s": "s", "fps": "FPS"}
     words = [replacements.get(word, word.capitalize()) for word in name.split("_")]
     return " ".join(words)

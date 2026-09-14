@@ -589,7 +589,7 @@ def main() -> None:
 
         completed_before_failure = len(list((experiment / "runs").glob("sim-*")))
         config = load_experiment_config(config_path)
-        config["dynamics"]["sphere_radius_km"] = 1.0
+        config["dynamics"]["half_strength_distance_km"] = 1.0
         if not preview_is_current(config, luna_preview):
             raise AssertionError("run-only failure input invalidated the static preview")
         failed_launch = start_experiment_worker(
