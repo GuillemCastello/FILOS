@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -50,6 +51,7 @@ from .oscillation import (
     solar_gravity_m_s2,
 )
 from .paths import PROJECT_ROOT
+from .segmentation import export_video_masks_npz, mask_figure, preview_masks, save_mask_plot
 from .simulation_io import rebuild_simulation_index, simulate_and_save_filament_dynamics
 from .video import (
     VELOCITY_VIDEO_RENDER_VERSION,
@@ -58,7 +60,7 @@ from .video import (
 )
 
 StatusCallback = Callable[[str, Mapping[str, Any]], None]
-PREVIEW_RENDER_VERSION = 8
+PREVIEW_RENDER_VERSION = 9
 STATIC_STATE_SNAPSHOT_VERSION = 1
 
 _GEOMETRY_STATIC_FIELDS = {
@@ -682,6 +684,10 @@ def generate_experiment_preview(
             ),
             "geometry_diagnostics_png": geometry_png,
             "luna_dynamics_diagnostics_png": luna_png,
+            "opacity_masks_png": _figure_png_bytes(mask_figure(
+                preview_masks(initial_result["arrays"], static_config["mask_tau_threshold"]),
+                static_config["mask_tau_threshold"], "Preview opacity masks",
+            )),
         }
         _store_stage(cache, "display", display_key, display)
         report(
@@ -702,6 +708,7 @@ def generate_experiment_preview(
         "render_version": PREVIEW_RENDER_VERSION,
         "generated_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "config_sha256": experiment_config_sha256(user_config),
+        "user_configuration": deepcopy(user_config),
         "static_fingerprint": fingerprint,
         "cache_input_stamps": input_stamps,
         "static_state": initial_result,
@@ -742,15 +749,125 @@ def generate_experiment_preview(
     }
 
 
+def preview_directory(experiment: Path, preview: Mapping[str, Any]) -> Path:
+    """Keep plots from each generated preview beside its eventual saved data."""
+    stamp = str(preview["generated_utc"]).replace(":", "").replace("-", "")
+    return Path(experiment) / "preview" / stamp
+
+
+def save_preview_plots(experiment: Path, preview: Mapping[str, Any]) -> Path:
+    """Publish only already-rendered PNGs while the user is experimenting."""
+    directory = preview_directory(experiment, preview)
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, png in preview["display"].items():
+        (directory / f"{name.removesuffix('_png')}.png").write_bytes(png)
+    return directory
+
+
+def preview_is_saved(experiment: Path, preview: Mapping[str, Any]) -> bool:
+    """Check the save receipt and required files for this exact generated preview."""
+    directory = preview_directory(experiment, preview)
+    receipt = directory / "preview.json"
+    if not receipt.is_file() or not (Path(experiment) / "experiment.toml").is_file():
+        return False
+    saved = _load_status(receipt)
+    required = ["experiment.toml", "static_state/manifest.json", "opacity_masks.npz"]
+    required.extend(f"{name.removesuffix('_png')}.png" for name in preview["display"])
+    return (saved.get("generated_utc") == preview["generated_utc"]
+            and saved.get("config_sha256") == preview["config_sha256"]) and all(
+        (directory / name).is_file() for name in required
+    )
+
+
+def save_experiment_preview(experiment: Path, preview: Mapping[str, Any]) -> Path:
+    """Save only static data and its matching config, never dynamics data."""
+    directory = save_preview_plots(experiment, preview)
+    config = preview["user_configuration"]
+    save_experiment_config(config, directory / "experiment.toml", check_inputs=None)
+    if not (directory / "static_state").exists():
+        save_static_result(dict(preview["static_state"]), directory / "static_state")
+    threshold = preview["static_state"]["config"]["mask_tau_threshold"]
+    np.savez_compressed(
+        directory / "opacity_masks.npz",
+        **preview_masks(preview["static_state"]["arrays"], threshold),
+        tau_threshold=threshold,
+    )
+    save_experiment_config(config, Path(experiment) / "experiment.toml", check_inputs=None)
+    _atomic_json(directory / "preview.json", {
+        key: value for key, value in preview.items() if key not in {"static_state", "display"}
+    })
+    return directory
+
+
+def _temporary_experiments_root(experiments_root: str | Path) -> Path:
+    """Use a stable scratch location so GUI reruns can find unfinished saves."""
+    digest = hashlib.sha256(str(Path(experiments_root).resolve()).encode()).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / f"filos-{os.getuid()}-{digest}"
+
+
+def _publish_visuals(source: Path, destination: Path) -> None:
+    """Copy videos and generated plots without committing simulation data."""
+    destination.mkdir(parents=True, exist_ok=True)
+    for path in source.rglob("*"):
+        if path.is_file() and path.suffix in {".png", ".mp4"}:
+            target = destination / path.relative_to(source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+
+
+def save_video_job(job_directory: str | Path) -> dict[str, Any]:
+    """Save a finished video's data, or request saving when its worker finishes."""
+    job = Path(job_directory)
+    with (job / ".save.lock").open("a+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        status = _load_status(job / "status.json")
+        if not status.get("defer_save"):
+            return status
+        # A separate marker avoids races with the worker's progress updates.
+        (job / "save_requested").touch()
+        if status.get("state") != "completed":
+            return status
+        source = Path(status["working_directory"])
+        destination = Path(status["output_directory"])
+        if status.get("data_saved") and source == destination:
+            missing = [name for name in status.get("saved_files", [])
+                       if not (destination / name).is_file()]
+            if missing:
+                raise FileNotFoundError(f"Saved video files are missing: {', '.join(missing)}")
+            return status
+        if not source.is_dir():
+            raise FileNotFoundError(f"Temporary video data is missing: {source}")
+        # Write the receipt last; failed copies stay retryable.
+        shutil.copytree(source, destination, dirs_exist_ok=True)
+        rebuild_simulation_index(destination.parent)
+        status = update_job_status(
+            job, status_directory=destination, data_saved=True, error=None,
+            saved_files=[str(path.relative_to(destination)) for path in destination.rglob("*")
+                         if path.is_file()],
+            working_directory=str(destination), h5_path=str(destination / "simulation.h5"),
+            gong_path=str(destination / "gong.mp4"), velocity_path=str(destination / "velocity.mp4"),
+        )
+        shutil.rmtree(source)
+        shutil.rmtree(job / "static_state", ignore_errors=True)
+        return status
+
+
 def load_preview(experiment_directory: str | Path) -> dict[str, Any] | None:
-    """Load historical disk preview metadata for read-only compatibility."""
-    path = Path(experiment_directory).resolve() / "preview/preview.json"
+    """Restore the latest explicitly saved preview, including its static state."""
+    root = Path(experiment_directory).resolve() / "preview"
+    snapshots = sorted(root.glob("*/preview.json"), reverse=True)
+    path = snapshots[0] if snapshots else root / "preview.json"
     if not path.is_file():
         return None
     with path.open("r", encoding="utf-8") as handle:
         preview = json.load(handle)
     if not isinstance(preview, dict):
         raise ValueError(f"{path} must contain a JSON object")
+    if snapshots:
+        preview["static_state"] = load_static_result(path.parent / "static_state")
+        preview["display"] = {
+            f"{png.stem}_png": png.read_bytes() for png in path.parent.glob("*.png")
+        }
     return preview
 
 
@@ -807,14 +924,14 @@ def list_jobs(
     experiment_directory: str | Path | None = None,
 ) -> list[dict[str, Any]]:
     """Return durable worker records, newest first."""
-    jobs_root = Path(experiments_root).resolve() / ".jobs"
-    if not jobs_root.is_dir():
-        return []
+    jobs_roots = [Path(experiments_root).resolve() / ".jobs",
+                  _temporary_experiments_root(experiments_root) / ".jobs"]
     selected_experiment = (
         None if experiment_directory is None else str(Path(experiment_directory).resolve())
     )
     jobs = []
-    for directory in sorted(jobs_root.glob("job-*"), reverse=True):
+    directories = [path for root in jobs_roots for path in root.glob("job-*")]
+    for directory in sorted(directories, key=lambda path: path.name, reverse=True):
         status_path = directory / "status.json"
         if not status_path.is_file():
             continue
@@ -864,6 +981,7 @@ def start_experiment_worker(
     user_config: Mapping[str, Any] | None = None,
     preview: Mapping[str, Any] | None = None,
     experiments_root: str | Path = DEFAULT_EXPERIMENTS_ROOT,
+    defer_save: bool = False,
 ) -> dict[str, Any]:
     """Persist current draft/static state and launch a detached production worker."""
     experiment = Path(experiment_directory).resolve()
@@ -887,12 +1005,19 @@ def start_experiment_worker(
 
     experiment.mkdir(parents=True, exist_ok=True)
     (experiment / "runs").mkdir(exist_ok=True)
-    save_experiment_config(current_config, config_path)
+    if defer_save:
+        if not preview_is_saved(experiment, preview):
+            raise ValueError("click Save preview before generating a video")
+    else:
+        save_experiment_config(current_config, config_path)
     current_config["inputs"]["h5_background_path"] = str(resolved["inputs"]["h5_background_path"])
     config_hash = experiment_config_sha256(current_config)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     job_id = f"job-{stamp}-{config_hash[:10].lower()}"
-    jobs_root = Path(experiments_root).resolve() / ".jobs"
+    jobs_root = (
+        _temporary_experiments_root(experiments_root) if defer_save
+        else Path(experiments_root).resolve()
+    ) / ".jobs"
     jobs_root.mkdir(parents=True, exist_ok=True)
     job = jobs_root / job_id
     staging = jobs_root / f".{job_id}.tmp-{os.getpid()}"
@@ -901,7 +1026,11 @@ def start_experiment_worker(
     staging.mkdir()
     try:
         snapshot_path = save_experiment_config(current_config, staging / "experiment.toml")
-        save_static_result(dict(static_result), staging / "static_state")
+        if defer_save:
+            shutil.copytree(preview_directory(experiment, preview) / "static_state",
+                            staging / "static_state")
+        else:
+            save_static_result(dict(static_result), staging / "static_state")
         preview_snapshot = {
             "snapshot_version": STATIC_STATE_SNAPSHOT_VERSION,
             "render_version": preview["render_version"],
@@ -922,6 +1051,8 @@ def start_experiment_worker(
             {
                 "job_id": job_id,
                 "state": "queued",
+                "defer_save": defer_save,
+                "data_saved": not defer_save,
                 "stage": "queued",
                 "experiment_directory": str(experiment),
                 "config_sha256": config_hash,
@@ -1146,6 +1277,12 @@ def run_experiment(
             velocity_limit_km_s=video["velocity_limit_km_s"],
             quiver_stride_px=int(video["quiver_stride_px"]),
         )
+        _notify(status_callback, "segmentation", completed_frames=n_frames, total_frames=n_frames)
+        masks_path = export_video_masks_npz(
+            Path(saved["h5_path"]), run_directory / "opacity_masks",
+            float(initial_result["config"]["mask_tau_threshold"]),
+        )
+        save_mask_plot(masks_path)
         shutil.copy2(snapshot, run_directory / "experiment.toml")
         shutil.copytree(job / "static_state", run_directory / "static_state")
         (run_directory / "frame_zero_comparison.png").write_bytes(
@@ -1204,6 +1341,8 @@ def move_failed_run(
     experiment = Path(experiment_directory).resolve()
     job = Path(job_directory).resolve()
     status = _load_status(job / "status.json")
+    if status.get("defer_save"):
+        experiment = job / "work"
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     failure = experiment / "runs" / f"failed-{stamp}-{str(status.get('config_sha256', 'unknown'))[:10].lower()}"
     failure.parent.mkdir(parents=True, exist_ok=True)
@@ -1272,8 +1411,9 @@ def run_worker_job(
             elapsed_seconds=0.0,
         )
         try:
+            deferred = _load_status(job / "status.json").get("defer_save", False)
             saved = run_experiment(
-                experiment,
+                job / "work" if deferred else experiment,
                 job / "experiment.toml",
                 status_callback=status_callback,
             )
@@ -1283,19 +1423,29 @@ def run_worker_job(
             log_path = job / "run.log"
             if log_path.is_file():
                 shutil.copy2(log_path, published_run / "run.log")
+            working_directory = published_run
+            if deferred:
+                published_run = experiment / "runs" / working_directory.name
+                _publish_visuals(working_directory, published_run)
             update_job_status(
                 job,
-                status_directory=published_run,
+                status_directory=None if deferred else published_run,
                 state="completed",
                 stage="complete",
                 elapsed_seconds=time.monotonic() - started,
                 finished_utc=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 output_directory=str(published_run),
+                working_directory=str(working_directory),
                 h5_path=str(saved["h5_path"]),
                 gong_path=str(saved["gong_path"]),
                 velocity_path=str(saved["velocity_path"]),
                 error=None,
             )
+            if deferred and (job / "save_requested").exists():
+                try:
+                    save_video_job(job)
+                except Exception as error:
+                    update_job_status(job, error=f"Video finished but saving failed: {error}")
             return saved
         except BaseException as error:
             message = f"{type(error).__name__}: {error}"

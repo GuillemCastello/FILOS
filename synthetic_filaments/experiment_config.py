@@ -657,11 +657,12 @@ def save_experiment_config(
     config: Mapping[str, Any],
     path: str | Path,
     *,
-    check_inputs: bool = True,
+    check_inputs: bool | None = True,
 ) -> Path:
-    """Validate and atomically save one complete TOML configuration."""
+    """Save TOML atomically; None preserves a generated snapshot without revalidation."""
     sections = normalize_experiment_config(config)
-    validate_save_config(sections, check_inputs=check_inputs)
+    if check_inputs is not None:
+        validate_save_config(sections, check_inputs=check_inputs)
     try:
         import tomli_w
     except ImportError as error:
@@ -696,6 +697,7 @@ def create_experiment(
     *,
     experiments_root: str | Path = DEFAULT_EXPERIMENTS_ROOT,
     source_config: Mapping[str, Any] | None = None,
+    save_config: bool = True,
 ) -> Path:
     """Atomically create one editable experiment from a complete configuration."""
     root = Path(experiments_root).resolve()
@@ -715,7 +717,8 @@ def create_experiment(
     staging.mkdir()
     try:
         (staging / "runs").mkdir()
-        save_experiment_config(config, staging / "experiment.toml")
+        if save_config:
+            save_experiment_config(config, staging / "experiment.toml")
         os.replace(staging, directory)
     except BaseException:
         if staging.exists():
@@ -736,7 +739,13 @@ def list_experiments(
     records = []
     for path in sorted(root.iterdir(), reverse=True):
         config_path = path / "experiment.toml"
-        if not path.is_dir() or not config_path.is_file():
+        if not path.is_dir() or path.name.startswith(".") or not (path / "runs").is_dir():
+            continue
+        if not config_path.is_file():
+            records.append({
+                "name": path.name.split("-", 1)[-1], "directory": path,
+                "config_path": config_path, "error": None,
+            })
             continue
         try:
             config = load_experiment_config(config_path, check_inputs=False)

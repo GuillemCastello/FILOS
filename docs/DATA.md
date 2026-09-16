@@ -36,9 +36,10 @@ python scripts/run_experiment.py --config configs/default_experiment.toml
 ```text
 simulations/
 └── experiments/
-    ├── .jobs/                     Worker snapshots, status, and logs
+    ├── .jobs/                     Command-line worker snapshots, status, and logs
     └── <experiment-id>/
         ├── experiment.toml        Saved experiment configuration
+        ├── preview/<timestamp>/   Preview plots; static data/config after Save preview
         └── runs/
             ├── index.json        Run index
             └── <simulation-id>/
@@ -49,9 +50,18 @@ simulations/
                 ├── frame_zero_comparison.png
                 ├── geometry_diagnostics.png
                 ├── luna_dynamics_diagnostics.png
+                ├── opacity_masks/     Per-frame NPZ masks and generated PNGs
                 ├── gong.mp4
                 └── velocity.mp4
 ```
+
+The GUI creates the experiment folder immediately. Generation writes preview PNGs,
+video MP4s, and generated mask plots into it. **Save preview** commits static data
+and its configuration; **Save video** commits that video's data and configuration.
+GUI worker snapshots and unsaved simulation data live in a temporary `filos-*`
+directory until saved. Successful video saves remove the temporary simulation copy.
+**Close** saves pending successful results and requests saving any running job on
+completion, using each result's matching configuration.
 
 Production jobs freeze the selected background path into their configuration
 snapshot. Input metadata and the static preview are checked before the worker
@@ -61,6 +71,17 @@ The interface can load standalone simulations and clone them into experiments.
 Production requires FFmpeg with `libx264` on `PATH`. GUI workflow regression also
 uses FFprobe. HDF5 export defaults to lossless LZF compression; see
 [performance controls](PERFORMANCE.md).
+
+## Detailed segmentation masks
+
+Automatic mask generation derives binary and continuous absorption masks from
+`radiative/tau_highres` and `radiative/tau_native` for every saved frame. These are
+separate from the broad geometry-based `labels/thread_mask_native` training label.
+Use **Save preview** or **Save video** to keep the NPZ arrays. Video exports add
+`opacity_masks/masks_frame_XXXX.npz` and a frame-zero PNG; previews save
+`opacity_masks.npz`. Existing simulations can be processed with
+`scripts/derive_segmentation_masks.py`. See the
+[segmentation guide](SEGMENTATION.md) for definitions, plotting, and the dataset schema.
 
 ## Scientific reference assets
 

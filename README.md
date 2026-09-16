@@ -44,10 +44,34 @@ Put the prepared `.h5` background files supplied by the project maintainers in
 python -m streamlit run scripts/experiment_gui.py
 ```
 
-Open **http://localhost:8501**. Create an experiment, generate a preview, and select
-**Generate video**. Stop the server with **Ctrl+C**.
+Open **http://localhost:8501**. **Create experiment** makes its folder immediately.
+Generate a preview, click **Save preview**, then **Generate video**. Preview plots
+and videos are saved automatically; **Save preview** stores static data/config and
+**Save video** stores the video's data/config. Video generation uses temporary
+working files until saved. **Close** saves the last successful results with their
+matching configs; running videos are saved when they finish. Close the experiment
+before stopping the server with **Ctrl+C** (closing the browser is not an autosave).
 
 On subsequent visits, activate `.venv` and run the launch command again.
+
+### Detailed segmentation masks
+
+Preview and video segmentation masks are generated automatically. Set
+**Mask tau threshold** under **Thread plasma and image formation** before generating.
+Use **Video segmentation masks** to browse frames. The corresponding Save button
+stores compressed NPZ masks; generated plots are saved automatically.
+
+Both produce binary masks (`tau > 0.1` by default) and continuous absorption
+maps at high and native resolution, without geometry padding or dilation. Video
+masks are saved separately under the run's `opacity_masks/` directory.
+
+You can also process an existing simulation from the terminal:
+
+```bash
+python scripts/derive_segmentation_masks.py /path/to/simulation.h5 --threshold 0.1
+```
+
+See the [segmentation guide](docs/SEGMENTATION.md) for thresholds, plots, and file formats.
 
 ### Choose a background
 

@@ -458,6 +458,7 @@ def main() -> None:
             "frame_zero_comparison_png",
             "geometry_diagnostics_png",
             "luna_dynamics_diagnostics_png",
+            "opacity_masks_png",
         }:
             raise AssertionError("in-memory preview has the wrong display products")
         preview_threads = luna_preview["static_state"]["threads"]

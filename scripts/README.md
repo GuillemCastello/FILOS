@@ -10,6 +10,7 @@ Activate the virtual environment and run commands from the repository root.
 | :--- | :--- |
 | `experiment_gui.py` | Local Streamlit experiment interface |
 | `run_experiment.py` | Run an experiment TOML through preview and production |
+| `derive_segmentation_masks.py` | Derive detailed opacity masks for every saved frame and save a comparison plot |
 | `prepare_backgrounds.py` | Prepare portable quiet-Sun sequences from full-disk observations |
 | `run_experiment_worker.py` | Internal worker launched by the GUI or command-line runner |
 
@@ -17,10 +18,13 @@ Activate the virtual environment and run commands from the repository root.
 python -m streamlit run scripts/experiment_gui.py
 python scripts/run_experiment.py --config configs/readme_example.toml
 python scripts/prepare_backgrounds.py
+python scripts/derive_segmentation_masks.py /path/to/simulation.h5 --threshold 0.1
 ```
 
 Ordinary runs only need prepared backgrounds and FFmpeg. Preparation uses source
 observations and optionally the detector; see the [background guide](../docs/BACKGROUNDS.md).
+Mask generation only needs an existing simulation; see the
+[segmentation guide](../docs/SEGMENTATION.md) for outputs and GUI controls.
 
 ## Checks
 
