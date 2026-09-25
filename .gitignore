@@ -233,3 +233,6 @@ __marimo__/
 # PDFs and other generated documents
 *.pdf
 *.tex
+
+# Isolated local dephasing research (code, inputs, and generated results).
+/research_dephasing/
