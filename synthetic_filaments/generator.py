@@ -10,6 +10,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from .config import (
+    SOLAR_RADIUS_KM,
     make_static_config,
     update_static_config,
     validate_static_config,
@@ -194,17 +195,36 @@ def _mean_realized_abs_pitch_deg(
     return weighted_angle / total_length if total_length > 0.0 else None
 
 
+def _solar_dilution_factor(height_km: float) -> float:
+    """Return the geometrical dilution of incident solar radiation at height."""
+    return float(
+        0.5 * (1.0 - np.sqrt(1.0 - (SOLAR_RADIUS_KM / (SOLAR_RADIUS_KM + height_km)) ** 2))
+    )
+
+
 def _effective_source_fraction(threads: list[Thread], fallback: float) -> float:
-    """Interpolate the separately published $S/I_{\rm bgr}$ height values."""
+    """Interpolate published source fractions, extending by dilution outside the anchors."""
     if not threads:
         return float(fallback)
     mean_dip_bottom_height_km = float(np.mean([thread["height_km"] for thread in threads]))
-    return float(
+    source_fraction = float(
         np.interp(
             mean_dip_bottom_height_km,
             HEINZEL_SOURCE_HEIGHT_KM,
             HEINZEL_SOURCE_FRACTION,
         )
+    )
+    if mean_dip_bottom_height_km < HEINZEL_SOURCE_HEIGHT_KM[0]:
+        anchor_height_km = HEINZEL_SOURCE_HEIGHT_KM[0]
+    elif mean_dip_bottom_height_km > HEINZEL_SOURCE_HEIGHT_KM[-1]:
+        anchor_height_km = HEINZEL_SOURCE_HEIGHT_KM[-1]
+    else:
+        return source_fraction
+    # Heinzel et al. (2015): the source function approximately follows dilution with altitude.
+    return (
+        source_fraction
+        * _solar_dilution_factor(mean_dip_bottom_height_km)
+        / _solar_dilution_factor(anchor_height_km)
     )
 
 
@@ -420,7 +440,8 @@ def _render_static_state(
         "dip_parameterization": placement["dip_parameterization"],
         "opacity_model": "heinzel2015_promweaver_calibrated_extension_1_to_100Mm",
         "opacity_table": deepcopy(_OPACITY_TABLE_METADATA),
-        "source_function_model": "heinzel2015_published_10_20_30Mm_clamped",
+        "source_function_model": "heinzel2015_published_10_20_30Mm_dilution_extended",
+        "source_function_height_domain_role": "published_anchor_range",
         "source_function_height_domain_km": [
             float(HEINZEL_SOURCE_HEIGHT_KM[0]),
             float(HEINZEL_SOURCE_HEIGHT_KM[-1]),
